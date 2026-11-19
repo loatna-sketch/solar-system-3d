@@ -9,8 +9,11 @@ export interface Clock {
   paused: boolean;
 }
 
-/** Begrenzung des Frame-Zeitschritts: verhindert Zeitsprünge nach inaktivem Tab oder Breakpoint */
-export const MAX_DT_SECONDS = 0.1;
+/**
+ * Begrenzung des Frame-Zeitschritts: verhindert Zeitsprünge nach inaktivem Tab oder Breakpoint.
+ * 0,25 s → die gewählte Geschwindigkeit stimmt bis hinunter zu 4 fps (Pi, Software-Rendering).
+ */
+export const MAX_DT_SECONDS = 0.25;
 
 export function createClock(jd: number, rate = 1): Clock {
   return { jd, rate, direction: 1, paused: false };

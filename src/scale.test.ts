@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { bodies } from './data/bodies';
 import { COMPRESSED, sceneDistance, sceneRadius, toScene } from './scale';
 
-const semiMajorAxis = (b: (typeof bodies)[number]) => b.orbit?.a[0] ?? 0;
+type Body = (typeof bodies)[number];
+const semiMajorAxis = (b: Body) => b.orbit?.a[0] ?? 0;
+const perihelion = (b: Body) => semiMajorAxis(b) * (1 - (b.orbit?.e[0] ?? 0));
+const aphelion = (b: Body) => semiMajorAxis(b) * (1 + (b.orbit?.e[0] ?? 0));
 
 describe('Skalierung', () => {
   it('ist streng monoton', () => {
@@ -20,13 +23,13 @@ describe('Skalierung', () => {
     expect(byScene).toEqual(byKm);
   });
 
-  it('lässt im komprimierten Maßstab keine Körper überlappen (inkl. Sonne)', () => {
+  it('lässt im komprimierten Maßstab keine Körper überlappen (Aphel innen vs. Perihel außen, inkl. Sonne)', () => {
     const sorted = [...bodies].sort((a, b) => semiMajorAxis(a) - semiMajorAxis(b));
     for (let i = 1; i < sorted.length; i++) {
       const inner = sorted[i - 1];
       const outer = sorted[i];
-      const innerEdge = sceneDistance(semiMajorAxis(inner)) + sceneRadius(inner.radiusKm);
-      const outerEdge = sceneDistance(semiMajorAxis(outer)) - sceneRadius(outer.radiusKm);
+      const innerEdge = sceneDistance(aphelion(inner)) + sceneRadius(inner.radiusKm);
+      const outerEdge = sceneDistance(perihelion(outer)) - sceneRadius(outer.radiusKm);
       expect(outerEdge, `${inner.id} ↔ ${outer.id}`).toBeGreaterThan(innerEdge);
     }
   });

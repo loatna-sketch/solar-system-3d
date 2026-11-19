@@ -1,5 +1,6 @@
 import type { Clock } from '../sim/clock';
-import { dateToJd, jdToDate } from '../sim/time';
+import { dateToJd } from '../sim/time';
+import { formatUtc, parseDateInput, toDateInputValue } from './format';
 
 const SPEEDS: { label: string; daysPerSecond: number }[] = [
   { label: 'Echtzeit', daysPerSecond: 1 / 86_400 },
@@ -13,11 +14,6 @@ const SPEEDS: { label: string; daysPerSecond: number }[] = [
 /** Gültigkeitsbereich der JPL-Elemente (Tabelle 1) */
 const VALID_FROM = dateToJd(new Date('1800-01-01T00:00:00Z'));
 const VALID_TO = dateToJd(new Date('2051-01-01T00:00:00Z'));
-
-function formatUtc(jd: number): string {
-  const d = jdToDate(jd);
-  return Number.isNaN(d.getTime()) ? '–' : `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -37,10 +33,12 @@ export function createTimeControls(root: HTMLElement, clock: Clock, onJump: () =
   const play = el('button', { type: 'button', title: 'Start/Pause (Leertaste)' });
   const dir = el('button', { type: 'button', title: 'Zeitrichtung umkehren' });
   const speed = el('select', { title: 'Geschwindigkeit' });
-  SPEEDS.forEach(({ label, daysPerSecond }, i) => {
-    speed.add(new Option(label, String(i), false, daysPerSecond === clock.rate));
-  });
-  const dateInput = el('input', { type: 'date', title: 'Zu Datum springen (UTC)' });
+  // Nächstliegendes Preset wählen und die Uhr darauf setzen, damit Anzeige und Uhr nie auseinanderlaufen
+  const distance = (rate: number) => Math.abs(Math.log(rate / clock.rate));
+  const initial = SPEEDS.reduce((best, s, i) => (distance(s.daysPerSecond) < distance(SPEEDS[best].daysPerSecond) ? i : best), 0);
+  clock.rate = SPEEDS[initial].daysPerSecond;
+  SPEEDS.forEach(({ label }, i) => speed.add(new Option(label, String(i), false, i === initial)));
+  const dateInput = el('input', { type: 'date', title: 'Zu Datum springen (UTC)', min: '0001-01-01', max: '9999-12-31' });
   const today = el('button', { type: 'button', textContent: 'Heute' });
 
   const row = el('div', { className: 'tc-row' });
@@ -58,12 +56,16 @@ export function createTimeControls(root: HTMLElement, clock: Clock, onJump: () =
   dir.addEventListener('click', () => (clock.direction = clock.direction === 1 ? -1 : 1));
   speed.addEventListener('change', () => (clock.rate = SPEEDS[Number(speed.value)].daysPerSecond));
   dateInput.addEventListener('change', () => {
-    if (dateInput.value) jumpTo(dateToJd(new Date(`${dateInput.value}T00:00:00Z`)));
+    const jd = parseDateInput(dateInput.value);
+    if (jd !== null) jumpTo(jd);
   });
   today.addEventListener('click', () => jumpTo(dateToJd(new Date())));
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) {
+    const t = e.target;
+    const isControl = t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement;
+    if (e.code === 'Space' && !isControl) {
       e.preventDefault();
+      if (e.repeat) return;
       clock.paused = !clock.paused;
     }
   });
@@ -78,6 +80,11 @@ export function createTimeControls(root: HTMLElement, clock: Clock, onJump: () =
       play.textContent = clock.paused ? '▶' : '⏸';
       dir.textContent = clock.direction === 1 ? '⏩' : '⏪';
       warning.hidden = clock.jd >= VALID_FROM && clock.jd < VALID_TO;
+      // Datumsfeld folgt der Uhr (außer während der Eingabe), damit jede Auswahl ein change-Event auslöst
+      if (document.activeElement !== dateInput) {
+        const value = toDateInputValue(clock.jd);
+        if (dateInput.value !== value) dateInput.value = value;
+      }
     },
   };
 }
