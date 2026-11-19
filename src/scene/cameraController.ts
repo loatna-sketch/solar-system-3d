@@ -23,12 +23,20 @@ export class CameraController {
   focused: FocusTarget | null = null;
 
   private elapsed = 0;
-  private readonly fromPosition = new THREE.Vector3();
   private readonly fromTarget = new THREE.Vector3();
-  /** Kameraposition relativ zum Ziel am Ende des Flugs */
-  private readonly endOffset = new THREE.Vector3();
+  /**
+   * Der Kamera-Offset (Kamera − Target) wird sphärisch interpoliert: Richtung per Slerp, Länge linear.
+   * Ein lineares Mischen beider Offsets könnte durch null laufen (Kamera fliegt durch ihr Target).
+   */
+  private readonly fromDirection = new THREE.Vector3();
+  private fromLength = 0;
+  private endLength = 0;
+  private readonly rotation = new THREE.Quaternion();
+  private readonly partialRotation = new THREE.Quaternion();
   private readonly lastTargetPosition = new THREE.Vector3();
   private readonly goal = new THREE.Vector3();
+  private readonly offset = new THREE.Vector3();
+  private static readonly IDENTITY = new THREE.Quaternion();
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -65,6 +73,15 @@ export class CameraController {
     this.startFlight(this.overviewOffset());
   }
 
+  /** Nach Größenänderung: Übersichtsabstand neu anpassen, Blickrichtung des Nutzers beibehalten */
+  refitOverview(): void {
+    if (this.mode !== 'overview') return;
+    this.offset.subVectors(this.camera.position, this.target);
+    if (this.offset.lengthSq() === 0) this.offset.copy(OVERVIEW_DIRECTION);
+    const distance = fitDistance(this.overviewRadius, this.camera.fov, this.camera.aspect);
+    this.camera.position.copy(this.target).add(this.offset.normalize().multiplyScalar(distance));
+  }
+
   update(dtSeconds: number): void {
     if (this.mode === 'flying') {
       this.elapsed += Math.max(dtSeconds, 0);
@@ -72,7 +89,12 @@ export class CameraController {
       // Ziel wird jedes Frame neu gelesen: Planeten bewegen sich während des Flugs weiter
       this.currentGoal(this.goal);
       this.target.lerpVectors(this.fromTarget, this.goal, t);
-      this.camera.position.lerpVectors(this.fromPosition, this.goal.clone().add(this.endOffset), t);
+      this.partialRotation.slerpQuaternions(CameraController.IDENTITY, this.rotation, t);
+      this.offset
+        .copy(this.fromDirection)
+        .applyQuaternion(this.partialRotation)
+        .multiplyScalar(THREE.MathUtils.lerp(this.fromLength, this.endLength, t));
+      this.camera.position.copy(this.target).add(this.offset);
       if (this.elapsed >= this.flightSeconds) {
         this.mode = this.focused ? 'following' : 'overview';
         this.lastTargetPosition.copy(this.goal);
@@ -86,9 +108,13 @@ export class CameraController {
   }
 
   private startFlight(endOffset: THREE.Vector3): void {
-    this.fromPosition.copy(this.camera.position);
     this.fromTarget.copy(this.target);
-    this.endOffset.copy(endOffset);
+    this.offset.subVectors(this.camera.position, this.target);
+    this.fromLength = this.offset.length();
+    this.fromDirection.copy(this.fromLength > 0 ? this.offset.divideScalar(this.fromLength) : OVERVIEW_DIRECTION);
+    this.endLength = endOffset.length();
+    // setFromUnitVectors wählt bei exakt entgegengesetzten Richtungen selbst eine Drehachse
+    this.rotation.setFromUnitVectors(this.fromDirection, endOffset.clone().normalize());
     this.elapsed = 0;
     this.mode = 'flying';
   }

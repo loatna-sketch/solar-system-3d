@@ -76,6 +76,41 @@ describe('CameraController', () => {
     expect(camera.position.length()).toBeCloseTo(fitDistance(OVERVIEW_RADIUS, 50, 16 / 9));
   });
 
+  it('fliegt nie durch das eigene Target, auch bei entgegengesetzten Offsets', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    // Kamera steht zwischen altem Ziel (Ursprung) und neuem Ziel → Start- und End-Offset zeigen entgegengesetzt
+    planet.position.set(20, 0, 0);
+    target.set(0, 0, 0);
+    camera.position.set(2, 0, 0);
+    controller.focus(focus);
+    let minDistance = Infinity;
+    for (let i = 0; i < 40; i++) {
+      controller.update(0.05);
+      minDistance = Math.min(minDistance, camera.position.distanceTo(target));
+    }
+    expect(controller.mode).toBe('following');
+    expect(minDistance).toBeGreaterThanOrEqual(Math.min(2, focusDistance(focus.radius)) * 0.99);
+  });
+
+  it('passt die Übersicht nach Größenänderung an und behält die Blickrichtung', () => {
+    const { camera, target, controller } = setup();
+    camera.position.set(0, 10, 0); // Nutzer hat gedreht und gezoomt
+    camera.aspect = 0.5;
+    controller.refitOverview();
+    expect(target.length()).toBe(0);
+    expect(camera.position.clone().normalize().y).toBeCloseTo(1);
+    expect(camera.position.length()).toBeCloseTo(fitDistance(OVERVIEW_RADIUS, 50, 0.5));
+  });
+
+  it('refitOverview ändert nichts, solange ein Körper fokussiert ist', () => {
+    const { camera, controller, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const before = camera.position.clone();
+    controller.refitOverview();
+    expect(camera.position.equals(before)).toBe(true);
+  });
+
   it('ignoriert negative Zeitschritte', () => {
     const { controller, focus } = setup();
     controller.focus(focus);

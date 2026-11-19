@@ -8,7 +8,7 @@ import { CameraController, type FocusTarget } from './scene/cameraController';
 import { minZoomDistance } from './scene/cameraMath';
 import { createBodyMesh, createOrbitLine, updateOrbitLine } from './scene/createBody';
 import { isOccluded, type Sphere } from './scene/occlusion';
-import { attachPicking } from './scene/picking';
+import { attachPicking, onPointerClick } from './scene/picking';
 import { createClock, tick } from './sim/clock';
 import { heliocentricPosition, orbitPoints } from './sim/kepler';
 import { dateToJd } from './sim/time';
@@ -72,15 +72,19 @@ for (const body of bodies) {
 }
 
 /** Labels, deren Anker hinter einem anderen Körper liegt, ausblenden (CSS-Labels kennen keinen Tiefenpuffer) */
+const labelEntries = [...focusTargets.values()].flatMap((t) => {
+  const label = t.object.children.find((c): c is CSS2DObject => c instanceof CSS2DObject);
+  // center ist eine Referenz auf mesh.position → bleibt ohne Kopie aktuell
+  const others: Sphere[] = [...focusTargets.values()]
+    .filter((o) => o !== t)
+    .map((o) => ({ center: o.object.position, radius: o.radius }));
+  return label ? [{ mesh: t.object, label, others }] : [];
+});
 const labelAnchor = new THREE.Vector3();
 function updateLabelVisibility(): void {
-  for (const self of focusTargets.values()) {
-    const label = self.object.children.find((c): c is CSS2DObject => c instanceof CSS2DObject);
-    if (!label) continue;
+  for (const { mesh, label, others } of labelEntries) {
     // Direkt aus der aktuellen Position (matrixWorld wird erst beim Rendern aktualisiert)
-    labelAnchor.copy(self.object.position).add(label.position);
-    const others: Sphere[] = [];
-    for (const t of focusTargets.values()) if (t !== self) others.push({ center: t.object.position, radius: t.radius });
+    labelAnchor.copy(mesh.position).add(label.position);
     label.visible = !isOccluded(camera.position, labelAnchor, others);
   }
 }
@@ -116,7 +120,8 @@ function select(id: string | null): void {
 }
 
 attachPicking(renderer.domElement, camera, [...focusTargets.values()].map((t) => t.object), select);
-labelRenderer.domElement.addEventListener('click', (e) => {
+// Labels: gleiche Klick-Erkennung wie auf dem Canvas, damit ein Drag, der auf einem Label beginnt, nichts auswählt
+onPointerClick(labelRenderer.domElement, (e) => {
   const id = (e.target as HTMLElement).dataset?.id;
   if (id) select(id);
 });
@@ -132,6 +137,7 @@ function resize(): void {
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  cameraController.refitOverview();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -156,7 +162,9 @@ renderer.setAnimationLoop((timeMs: number) => {
   controls.enabled = !cameraController.isFlying;
   const focused = cameraController.focused;
   controls.minDistance = focused ? minZoomDistance(focused.radius) : OVERVIEW_MIN_DISTANCE;
-  controls.update();
+  // Während des Flugs nicht: update() würde auf minDistance klemmen und Rest-Damping anwenden
+  if (!cameraController.isFlying) controls.update();
+  else camera.lookAt(controls.target);
 
   timeControls.update();
   updateLabelVisibility();
