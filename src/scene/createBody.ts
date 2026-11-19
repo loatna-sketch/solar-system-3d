@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { BodyData } from '../data/bodies';
+import type { Vec3 } from '../sim/kepler';
 
 export function createBodyMesh(body: BodyData, radius: number): THREE.Mesh {
   const geometry = new THREE.SphereGeometry(radius, 64, 32);
@@ -21,13 +22,17 @@ export function createBodyMesh(body: BodyData, radius: number): THREE.Mesh {
   return mesh;
 }
 
-export function createOrbitLine(distance: number, segments = 256): THREE.LineLoop {
-  const points: THREE.Vector3[] = [];
-  for (let i = 0; i < segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    points.push(new THREE.Vector3(distance * Math.cos(a), 0, distance * Math.sin(a)));
-  }
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+function orbitGeometry(points: Vec3[]): THREE.BufferGeometry {
+  return new THREE.BufferGeometry().setFromPoints(points.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+}
+
+/** Geschlossene Bahnlinie aus Szenen-Punkten */
+export function createOrbitLine(points: Vec3[]): THREE.LineLoop {
   const material = new THREE.LineBasicMaterial({ color: 0x5a6b8c, transparent: true, opacity: 0.45 });
-  return new THREE.LineLoop(geometry, material);
+  return new THREE.LineLoop(orbitGeometry(points), material);
+}
+
+export function updateOrbitLine(line: THREE.LineLoop, points: Vec3[]): void {
+  line.geometry.dispose();
+  line.geometry = orbitGeometry(points);
 }
