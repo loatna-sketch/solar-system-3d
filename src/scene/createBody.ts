@@ -15,6 +15,7 @@ export function createBodyMesh(body: BodyData, radius: number): THREE.Mesh {
   const div = document.createElement('div');
   div.className = 'label';
   div.textContent = body.name;
+  div.dataset.id = body.id; // klickbar → Fokus (siehe main.ts)
   const label = new CSS2DObject(div);
   label.position.set(0, radius, 0);
   mesh.add(label);

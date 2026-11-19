@@ -19,9 +19,14 @@ body {
   color: #eee;
   background: rgb(0 0 0 / 0.45);
   border-radius: 4px;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   white-space: nowrap;
-  transform: translateY(-14px);
+  user-select: none;
+}
+
+.label:hover {
+  background: rgb(60 90 150 / 0.75);
 }
 
 #hud {
@@ -79,7 +84,45 @@ body {
   font-size: 12px;
 }
 
+#body-list {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#body-list button {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: #ddd;
+  background: rgb(10 14 24 / 0.65);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+#body-list button:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+#body-list button.active {
+  background: rgb(60 90 150 / 0.75);
+  border-color: rgb(140 170 230 / 0.6);
+  color: #fff;
+}
+
 @media (max-width: 600px) {
+  #body-list {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
   #hud {
     display: none;
   }
