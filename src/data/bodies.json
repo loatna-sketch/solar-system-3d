@@ -1,0 +1,11 @@
+[
+  { "id": "sun",     "name": "Sonne",   "type": "star",   "radiusKm": 695700, "semiMajorAxisAu": 0,           "color": "#ffd27a" },
+  { "id": "mercury", "name": "Merkur",  "type": "planet", "radiusKm": 2439.7, "semiMajorAxisAu": 0.38709927,  "color": "#9c9690" },
+  { "id": "venus",   "name": "Venus",   "type": "planet", "radiusKm": 6051.8, "semiMajorAxisAu": 0.72333566,  "color": "#e3c48f" },
+  { "id": "earth",   "name": "Erde",    "type": "planet", "radiusKm": 6371.0, "semiMajorAxisAu": 1.00000261,  "color": "#3a6fd8" },
+  { "id": "mars",    "name": "Mars",    "type": "planet", "radiusKm": 3389.5, "semiMajorAxisAu": 1.52371034,  "color": "#c1440e" },
+  { "id": "jupiter", "name": "Jupiter", "type": "planet", "radiusKm": 69911,  "semiMajorAxisAu": 5.20288700,  "color": "#d2b48c" },
+  { "id": "saturn",  "name": "Saturn",  "type": "planet", "radiusKm": 58232,  "semiMajorAxisAu": 9.53667594,  "color": "#e8d49a" },
+  { "id": "uranus",  "name": "Uranus",  "type": "planet", "radiusKm": 25362,  "semiMajorAxisAu": 19.18916464, "color": "#9fe0e8" },
+  { "id": "neptune", "name": "Neptun",  "type": "planet", "radiusKm": 24622,  "semiMajorAxisAu": 30.06992276, "color": "#4b6fe0" }
+]
