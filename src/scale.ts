@@ -1,6 +1,8 @@
+import type { Vec3 } from './sim/kepler';
+
 /**
  * Abbildung physikalischer Größen (km, AU) auf Szenen-Einheiten.
- * Die Simulation rechnet immer physikalisch; nur diese Funktionen kennen den Darstellungsmaßstab.
+ * Die Simulation rechnet immer physikalisch; nur dieses Modul kennt den Darstellungsmaßstab.
  * Komprimiert: Potenzgesetz staucht die Dynamik (Sonne/Merkur ≈ 285:1 → ≈ 10:1, Neptun/Merkur-Abstand ≈ 78:1 → ≈ 9:1).
  */
 export interface ScaleConfig {
@@ -23,4 +25,16 @@ export function sceneRadius(radiusKm: number, cfg: ScaleConfig = COMPRESSED): nu
 
 export function sceneDistance(distanceAu: number, cfg: ScaleConfig = COMPRESSED): number {
   return cfg.distanceFactor * Math.pow(distanceAu, cfg.distanceExponent);
+}
+
+/**
+ * Heliozentrisch-ekliptikale Position (AU, z = Nord) → Szenenkoordinaten (Three.js, y = oben).
+ * Achsen: (x, y, z)_ekl → (x, z, −y)_Szene (echte Drehung, keine Spiegelung).
+ * Nur der Abstand zur Sonne wird komprimiert, die Richtung bleibt exakt.
+ */
+export function toScene([x, y, z]: Vec3, cfg: ScaleConfig = COMPRESSED): Vec3 {
+  const r = Math.hypot(x, y, z);
+  if (r === 0) return [0, 0, 0];
+  const k = sceneDistance(r, cfg) / r;
+  return [x * k, z * k, -y * k];
 }

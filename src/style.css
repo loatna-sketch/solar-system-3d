@@ -32,3 +32,59 @@ body {
   opacity: 0.6;
   pointer-events: none;
 }
+
+#time-controls {
+  position: fixed;
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgb(10 14 24 / 0.75);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.tc-date {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+.tc-row {
+  display: flex;
+  gap: 6px;
+}
+
+#time-controls button,
+#time-controls select,
+#time-controls input {
+  font: inherit;
+  color: inherit;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.15);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color-scheme: dark;
+}
+
+#time-controls button {
+  cursor: pointer;
+  min-width: 34px;
+}
+
+.tc-warning {
+  color: #f0b45a;
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  #hud {
+    display: none;
+  }
+  #time-controls {
+    left: 10px;
+    right: 10px;
+  }
+}
