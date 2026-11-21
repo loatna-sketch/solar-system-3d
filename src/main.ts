@@ -1,17 +1,24 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bodies, type OrbitalElements } from './data/bodies';
-import { sceneRadius, toScene } from './scale';
+import { sceneDistance, sceneRadius, toScene } from './scale';
+import { CameraController, type FocusTarget } from './scene/cameraController';
+import { minZoomDistance } from './scene/cameraMath';
 import { createBodyMesh, createOrbitLine, updateOrbitLine } from './scene/createBody';
+import { isOccluded, type Sphere } from './scene/occlusion';
+import { attachPicking, onPointerClick } from './scene/picking';
 import { createClock, tick } from './sim/clock';
 import { heliocentricPosition, orbitPoints } from './sim/kepler';
 import { dateToJd } from './sim/time';
+import { createBodyList } from './ui/bodyList';
 import { createTimeControls } from './ui/timeControls';
 
 /** Bahnelemente driften langsam; Bahnlinien werden nach so vielen Tagen Abweichung neu berechnet */
 const ORBIT_REBUILD_DAYS = 50 * 365.25;
+/** Zoom-Grenze in der Übersicht (knapp außerhalb der Sonne) */
+const OVERVIEW_MIN_DISTANCE = 3;
 
 const container = document.getElementById('app')!;
 
@@ -22,16 +29,14 @@ container.appendChild(renderer.domElement);
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.domElement.style.position = 'absolute';
 labelRenderer.domElement.style.inset = '0';
-labelRenderer.domElement.style.pointerEvents = 'none';
+labelRenderer.domElement.style.pointerEvents = 'none'; // Labels selbst sind klickbar (CSS)
 container.appendChild(labelRenderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 10_000);
-camera.position.set(0, 35, 70);
+const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.01, 10_000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.minDistance = 3;
 controls.maxDistance = 400;
 
 // Sonne als einzige Lichtquelle; decay 0, damit äußere Planeten im komprimierten Maßstab sichtbar bleiben
@@ -46,17 +51,47 @@ interface OrbitingBody {
   line: THREE.LineLoop;
 }
 const orbiting: OrbitingBody[] = [];
+const focusTargets = new Map<string, FocusTarget>();
 let orbitEpochJd = clock.jd;
+let overviewRadius = 0;
 
 const scenePoints = (orbit: OrbitalElements, jd: number) => orbitPoints(orbit, jd).map((p) => toScene(p));
 
 for (const body of bodies) {
-  const mesh = createBodyMesh(body, sceneRadius(body.radiusKm));
+  const radius = sceneRadius(body.radiusKm);
+  const mesh = createBodyMesh(body, radius);
   scene.add(mesh);
+  focusTargets.set(body.id, { id: body.id, object: mesh, radius });
   if (body.orbit) {
     const line = createOrbitLine(scenePoints(body.orbit, clock.jd));
     scene.add(line);
     orbiting.push({ orbit: body.orbit, mesh, line });
+    const aphelion = body.orbit.a[0] * (1 + body.orbit.e[0]);
+    overviewRadius = Math.max(overviewRadius, sceneDistance(aphelion) + radius);
+  }
+}
+
+/** Labels, deren Anker hinter einem anderen Körper liegt, ausblenden (CSS-Labels kennen keinen Tiefenpuffer) */
+const labelEntries = [...focusTargets.values()].flatMap((t) => {
+  const label = t.object.children.find((c): c is CSS2DObject => c instanceof CSS2DObject);
+  // center ist eine Referenz auf mesh.position → bleibt ohne Kopie aktuell
+  const others: Sphere[] = [...focusTargets.values()]
+    .filter((o) => o !== t)
+    .map((o) => ({ center: o.object.position, radius: o.radius }));
+  return label ? [{ mesh: t.object, label, others }] : [];
+});
+const labelAnchor = new THREE.Vector3();
+function updateLabelVisibility(): void {
+  for (const { mesh, label, others } of labelEntries) {
+    // Direkt aus der aktuellen Position (matrixWorld wird erst beim Rendern aktualisiert)
+    labelAnchor.copy(mesh.position).add(label.position);
+    label.visible = !isOccluded(camera.position, labelAnchor, others);
+  }
+}
+
+function updatePositions(): void {
+  for (const { orbit, mesh } of orbiting) {
+    mesh.position.set(...toScene(heliocentricPosition(orbit, clock.jd)));
   }
 }
 
@@ -65,7 +100,36 @@ function rebuildOrbits(): void {
   for (const { orbit, line } of orbiting) updateOrbitLine(line, scenePoints(orbit, clock.jd));
 }
 
-const timeControls = createTimeControls(document.getElementById('time-controls')!, clock, rebuildOrbits);
+// --- Kamera & Auswahl -------------------------------------------------------------------------
+
+const cameraController = new CameraController(camera, controls.target, overviewRadius);
+
+const sun = bodies.find((b) => b.type === 'star')!;
+const bodyList = createBodyList(
+  document.getElementById('body-list')!,
+  sun,
+  bodies.filter((b) => b.type === 'planet'),
+  select,
+);
+
+function select(id: string | null): void {
+  const target = id ? focusTargets.get(id) : undefined;
+  if (target) cameraController.focus(target);
+  else cameraController.overview();
+  bodyList.setActive(target ? target.id : null);
+}
+
+attachPicking(renderer.domElement, camera, [...focusTargets.values()].map((t) => t.object), select);
+// Labels: gleiche Klick-Erkennung wie auf dem Canvas, damit ein Drag, der auf einem Label beginnt, nichts auswählt
+onPointerClick(labelRenderer.domElement, (e) => {
+  const id = (e.target as HTMLElement).dataset?.id;
+  if (id) select(id);
+});
+
+const timeControls = createTimeControls(document.getElementById('time-controls')!, clock, () => {
+  rebuildOrbits();
+  updatePositions();
+});
 
 function resize(): void {
   const { clientWidth: w, clientHeight: h } = container;
@@ -73,22 +137,37 @@ function resize(): void {
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  cameraController.refitOverview();
 }
 window.addEventListener('resize', resize);
 resize();
 
+updatePositions();
+cameraController.snapToOverview();
+bodyList.setActive(null);
+
+// --- Hauptschleife ---------------------------------------------------------------------------
+
 let lastFrameMs: number | undefined;
 renderer.setAnimationLoop((timeMs: number) => {
-  tick(clock, lastFrameMs === undefined ? 0 : (timeMs - lastFrameMs) / 1000);
+  const dt = lastFrameMs === undefined ? 0 : (timeMs - lastFrameMs) / 1000;
   lastFrameMs = timeMs;
 
+  tick(clock, dt);
   if (Math.abs(clock.jd - orbitEpochJd) > ORBIT_REBUILD_DAYS) rebuildOrbits();
-  for (const { orbit, mesh } of orbiting) {
-    mesh.position.set(...toScene(heliocentricPosition(orbit, clock.jd)));
-  }
+  updatePositions();
+
+  // Reihenfolge: erst Positionen, dann Kamera mitführen, dann Nutzereingaben (OrbitControls)
+  cameraController.update(dt);
+  controls.enabled = !cameraController.isFlying;
+  const focused = cameraController.focused;
+  controls.minDistance = focused ? minZoomDistance(focused.radius) : OVERVIEW_MIN_DISTANCE;
+  // Während des Flugs nicht: update() würde auf minDistance klemmen und Rest-Damping anwenden
+  if (!cameraController.isFlying) controls.update();
+  else camera.lookAt(controls.target);
 
   timeControls.update();
-  controls.update();
+  updateLabelVisibility();
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 });

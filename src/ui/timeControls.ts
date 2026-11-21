@@ -1,5 +1,6 @@
 import type { Clock } from '../sim/clock';
 import { dateToJd } from '../sim/time';
+import { el, isFormControl } from './dom';
 import { formatUtc, parseDateInput, toDateInputValue } from './format';
 
 const SPEEDS: { label: string; daysPerSecond: number }[] = [
@@ -14,13 +15,6 @@ const SPEEDS: { label: string; daysPerSecond: number }[] = [
 /** Gültigkeitsbereich der JPL-Elemente (Tabelle 1) */
 const VALID_FROM = dateToJd(new Date('1800-01-01T00:00:00Z'));
 const VALID_TO = dateToJd(new Date('2051-01-01T00:00:00Z'));
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: Partial<HTMLElementTagNameMap[K]> = {},
-): HTMLElementTagNameMap[K] {
-  return Object.assign(document.createElement(tag), props);
-}
 
 /**
  * Zeitsteuerung als HTML-Overlay. Schreibt direkt in die Clock;
@@ -61,9 +55,7 @@ export function createTimeControls(root: HTMLElement, clock: Clock, onJump: () =
   });
   today.addEventListener('click', () => jumpTo(dateToJd(new Date())));
   window.addEventListener('keydown', (e) => {
-    const t = e.target;
-    const isControl = t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement;
-    if (e.code === 'Space' && !isControl) {
+    if (e.code === 'Space' && !isFormControl(e.target)) {
       e.preventDefault();
       if (e.repeat) return;
       clock.paused = !clock.paused;

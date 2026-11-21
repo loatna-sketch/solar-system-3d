@@ -20,8 +20,8 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 - `src/data/bodies.json` – Himmelskörper als Daten (Radius, Kepler-Bahnelemente mit Änderungsraten)
 - `src/sim/` – reine Simulationslogik ohne Three.js: Julianisches Datum (`time.ts`), Kepler-Bahnen (`kepler.ts`), Simulationsuhr (`clock.ts`)
 - `src/scale.ts` – einzige Stelle, die physikalische Größen auf Szenen-Einheiten abbildet (Achsentausch + komprimierter Maßstab)
-- `src/scene/` – Three.js-Objekte (Körper, Labels, Bahnlinien)
-- `src/ui/` – HTML-Overlays (Zeitsteuerung)
+- `src/scene/` – Three.js-Objekte (Körper, Labels, Bahnlinien), Kamera-Steuerung (Fly-to/Follow), Picking, Label-Verdeckung
+- `src/ui/` – HTML-Overlays (Zeitsteuerung, Körperliste)
 
 ## Modell & Annahmen
 
@@ -35,7 +35,13 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 
 ## Bedienung
 
-Ziehen: drehen · Rad/Pinch: zoomen · Rechtsklick: verschieben · Leertaste: Start/Pause.
+| Aktion | Eingabe |
+|---|---|
+| Körper fokussieren (Kamera fliegt hin und folgt) | Klick auf Planet oder Label · Liste oben links · Tasten `1`–`8`, `S` = Sonne |
+| Zurück zur Übersicht | `Esc` oder `0` |
+| Drehen / Zoomen / Verschieben | Ziehen · Rad/Pinch · Rechtsklick |
+| Zeit Start/Pause | Leertaste |
+
 Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumssprung, „Heute“.
 
 ## Roadmap
@@ -43,9 +49,9 @@ Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumsspr
 - [x] M0 Grundgerüst: Vite/TS/Three.js, Lint, Tests, CI + Pages-Deploy
 - [x] M1 Statisches Sonnensystem: Sonne + 8 Planeten, komprimierter Maßstab, Labels, OrbitControls
 - [x] M2 Bahnmechanik: Kepler-Elemente (JPL), Zeit-Engine, Bahnellipsen, Tests gegen Horizons
-- [ ] M3 Navigation: Klick-Fokus, Fly-to, Follow, Floating Origin
+- [x] M3 Navigation: Klick-Fokus, Fly-to, Follow (Floating Origin → M5, erst im realen Maßstab nötig)
 - [ ] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
-- [ ] M5 Maßstab real ↔ komprimiert
+- [ ] M5 Maßstab real ↔ komprimiert, Floating Origin
 - [ ] M6 Monde, Zwergplaneten, Asteroidengürtel
 - [ ] M7 Info-Panel, Touch, Performance
 - [ ] M8 Stretch: VSOP87, Raumsonden, WebXR, N-Body-Sandbox
