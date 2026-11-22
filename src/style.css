@@ -131,3 +131,15 @@ body {
     right: 10px;
   }
 }
+
+.tc-credits {
+  order: 10; /* unter den dynamisch angehängten Bedienelementen */
+  font-size: 11px;
+  color: #8a94a8;
+  text-decoration: none;
+}
+
+.tc-credits:hover {
+  color: #c8d0e0;
+  text-decoration: underline;
+}

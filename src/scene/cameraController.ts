@@ -7,6 +7,8 @@ export interface FocusTarget {
   object: THREE.Object3D;
   /** Radius in Szenen-Einheiten; ändert sich mit dem Maßstab */
   radius: number;
+  /** Äußerster Radius inkl. Ringe; Standard = radius */
+  extent?: number;
 }
 
 export type CameraMode = 'overview' | 'flying' | 'following';

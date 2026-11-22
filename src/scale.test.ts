@@ -1,11 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { bodies } from './data/bodies';
-import { AU_KM, blendScale, COMPRESSED, REAL, sceneDistance, sceneRadius, toScene, type ScaleConfig } from './scale';
+import {
+  AU_KM,
+  blendScale,
+  COMPRESSED,
+  REAL,
+  sceneDistance,
+  sceneRadius,
+  sceneRingRadius,
+  toScene,
+  toSceneDirection,
+  type ScaleConfig,
+} from './scale';
 
 type Body = (typeof bodies)[number];
 const semiMajorAxis = (b: Body) => b.orbit?.a[0] ?? 0;
 const perihelion = (b: Body) => semiMajorAxis(b) * (1 - (b.orbit?.e[0] ?? 0));
 const aphelion = (b: Body) => semiMajorAxis(b) * (1 + (b.orbit?.e[0] ?? 0));
+/** Äußerste Ausdehnung in der Szene: Ringe, sonst Körperradius */
+const extent = (b: Body, cfg: ScaleConfig = COMPRESSED) =>
+  b.rings ? sceneRingRadius(b.rings.outerKm, b.radiusKm, cfg) : sceneRadius(b.radiusKm, cfg);
 
 describe('Skalierung', () => {
   it('ist streng monoton', () => {
@@ -24,15 +38,15 @@ describe('Skalierung', () => {
   });
 
   it.each([0, 0.1, 0.25, 0.5, 0.75, 0.9, 1])(
-    'lässt bei Überblendung t = %s keine Körper überlappen (Aphel innen vs. Perihel außen, inkl. Sonne)',
+    'lässt bei Überblendung t = %s keine Körper überlappen (Aphel innen vs. Perihel außen, inkl. Sonne und Ringe)',
     (t) => {
       const cfg = blendScale(COMPRESSED, REAL, t);
       const sorted = [...bodies].sort((a, b) => semiMajorAxis(a) - semiMajorAxis(b));
       for (let i = 1; i < sorted.length; i++) {
         const inner = sorted[i - 1];
         const outer = sorted[i];
-        const innerEdge = sceneDistance(aphelion(inner), cfg) + sceneRadius(inner.radiusKm, cfg);
-        const outerEdge = sceneDistance(perihelion(outer), cfg) - sceneRadius(outer.radiusKm, cfg);
+        const innerEdge = sceneDistance(aphelion(inner), cfg) + extent(inner, cfg);
+        const outerEdge = sceneDistance(perihelion(outer), cfg) - extent(outer, cfg);
         expect(outerEdge, `${inner.id} ↔ ${outer.id}`).toBeGreaterThan(innerEdge);
       }
     },
@@ -100,5 +114,31 @@ describe('toScene', () => {
 
   it('bildet den Ursprung auf den Ursprung ab', () => {
     expect(toScene([0, 0, 0])).toEqual([0, 0, 0]);
+  });
+});
+
+describe('toSceneDirection', () => {
+  it('ist eine echte Drehung (Determinante +1) ohne Kompression', () => {
+    const ex = toSceneDirection([1, 0, 0]);
+    const ey = toSceneDirection([0, 1, 0]);
+    const ez = toSceneDirection([0, 0, 1]);
+    const det =
+      ex[0] * (ey[1] * ez[2] - ey[2] * ez[1]) - ex[1] * (ey[0] * ez[2] - ey[2] * ez[0]) + ex[2] * (ey[0] * ez[1] - ey[1] * ez[0]);
+    expect(det).toBe(1);
+    expect(Math.hypot(...toSceneDirection([3, 4, 12]))).toBe(13);
+  });
+
+  it('stimmt in der Richtung mit toScene überein', () => {
+    const p: [number, number, number] = [0.3, -1.2, 0.05];
+    const a = toSceneDirection(p);
+    const b = toScene(p);
+    const k = Math.hypot(...b) / Math.hypot(...a);
+    a.forEach((v, i) => expect(v * k).toBeCloseTo(b[i]));
+  });
+});
+
+describe('sceneRingRadius', () => {
+  it('skaliert im selben Verhältnis wie der Körperradius', () => {
+    expect(sceneRingRadius(120_000, 60_000)).toBeCloseTo(2 * sceneRadius(60_000));
   });
 });

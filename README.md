@@ -3,7 +3,7 @@
 Interaktive 3D-Simulation des Sonnensystems im Browser – frei dreh- und erkundbar.
 Stack: Three.js · TypeScript · Vite · Vitest · GitHub Actions/Pages.
 
-![M1 – statisches Sonnensystem](docs/screenshot-m1.png)
+![Sonnensystem 3D – Blick auf die Sonne](docs/screenshot.jpg)
 
 ## Entwicklung
 
@@ -18,9 +18,10 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 ## Architektur
 
 - `src/data/bodies.json` – Himmelskörper als Daten (Radius, Kepler-Bahnelemente mit Änderungsraten)
-- `src/sim/` – reine Simulationslogik ohne Three.js: Julianisches Datum (`time.ts`), Kepler-Bahnen (`kepler.ts`), Simulationsuhr (`clock.ts`)
+- `src/sim/` – reine Simulationslogik ohne Three.js: Julianisches Datum (`time.ts`), Kepler-Bahnen (`kepler.ts`), Simulationsuhr (`clock.ts`), Orientierung/Eigenrotation (`rotation.ts`)
 - `src/scale.ts` – einzige Stelle, die physikalische Größen auf Szenen-Einheiten abbildet (Achsentausch; Maßstab komprimiert/real als Potenzgesetz)
-- `src/scene/` – Three.js-Objekte (Körper, Labels, Bahnlinien), Kamera-Steuerung (Fly-to/Follow), Picking, Label-Verdeckung
+- `src/scene/` – Three.js-Objekte (Körper, Ringe, Labels, Bahnlinien), Texturen, Bloom, Kamera-Steuerung (Fly-to/Follow), Picking, Label-Verdeckung
+- `public/textures/` – 2k-Texturen (siehe Lizenz unten), geladen mit `scripts/fetch-textures.mjs`
 - `src/ui/` – HTML-Overlays (Zeitsteuerung, Maßstab, Körperliste)
 
 ## Modell & Annahmen
@@ -32,6 +33,11 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 - **Maßstab:** komprimiert = Potenzgesetz (Radien r^0,4, Abstände r^0,5); real = linear, Radien und Abstände in derselben Einheit.
   In beiden gilt 1 AU = 8 Szenen-Einheiten. Details und Präzisionsüberlegungen: [`docs/plan-m5.md`](docs/plan-m5.md).
 - **Zeit:** Julianisches Datum; UTC wird als TDB behandelt (ΔT ≈ 69 s, vernachlässigbar).
+- **Orientierung & Eigenrotation:** Pol (α₀, δ₀) und Nullmeridian W = W₀ + Ẇ·d nach IAU WGCCRE – Achsneigung, Jahreszeiten
+  und Tageszeit stimmen (Erde: Sonnenhöchststand-Länge getestet). Vereinfachung: Pole ohne Präzession/Nutation.
+  Rückläufige Rotation (Venus, Uranus) über negatives Ẇ.
+- **Darstellung:** Bloom nur für die HDR-helle Sonne (Schwelle 1,0). Saturnringe in der Äquatorebene, Radien im selben
+  Verhältnis skaliert wie der Planet. Sternenhimmel nur kosmetisch ausgerichtet.
 - **Referenztest:** `src/sim/__fixtures__/horizons.json` enthält Positionen aus JPL Horizons
   (erzeugt mit `scripts/fetch-horizons.mjs`); `kepler.test.ts` prüft dagegen (< 0,25°, < 1 % Abstand).
 
@@ -53,8 +59,13 @@ Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumsspr
 - [x] M1 Statisches Sonnensystem: Sonne + 8 Planeten, komprimierter Maßstab, Labels, OrbitControls
 - [x] M2 Bahnmechanik: Kepler-Elemente (JPL), Zeit-Engine, Bahnellipsen, Tests gegen Horizons
 - [x] M3 Navigation: Klick-Fokus, Fly-to, Follow (Floating Origin → M5, erst im realen Maßstab nötig)
-- [ ] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
+- [x] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
 - [ ] M5 Maßstab real ↔ komprimiert, Floating Origin — M5.1 Umschalter ✓, M5.2 animierter Übergang, M5.3 Präzision (Bahnlinien, kamerarelatives Rendern)
 - [ ] M6 Monde, Zwergplaneten, Asteroidengürtel
 - [ ] M7 Info-Panel, Touch, Performance
 - [ ] M8 Stretch: VSOP87, Raumsonden, WebXR, N-Body-Sandbox
+
+## Lizenz der Texturen
+
+Texturen von [Solar System Scope](https://www.solarsystemscope.com/textures/),
+lizenziert unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) – siehe `public/textures/ATTRIBUTION.md`.
