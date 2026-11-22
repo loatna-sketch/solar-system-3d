@@ -13,6 +13,10 @@ export interface BodyObjects {
   root: THREE.Group;
   /** Kugel mit Orientierung/Eigenrotation; Ringe hängen daran */
   sphere: THREE.Mesh;
+  /** Für Picking: Kugel und ggf. Ringe, jeweils mit name = Körper-ID */
+  pickables: THREE.Mesh[];
+  /** Äußerster Radius in Szenen-Einheiten (inkl. Ringe) */
+  extent: number;
 }
 
 function applyTexture(
@@ -46,7 +50,15 @@ export function createBody(body: BodyData, radius: number, textures: TextureSour
   sphere.name = body.id; // Picking liefert die ID
   root.add(sphere);
 
-  if (body.rings) sphere.add(createRings(body.rings, body.radiusKm, textures));
+  const pickables: THREE.Mesh[] = [sphere];
+  let extent = radius;
+  if (body.rings) {
+    const rings = createRings(body.rings, body.radiusKm, textures);
+    rings.name = body.id; // Klick auf die Ringe wählt den Planeten
+    sphere.add(rings);
+    pickables.push(rings);
+    extent = sceneRingRadius(body.rings.outerKm, body.radiusKm);
+  }
 
   const div = document.createElement('div');
   div.className = 'label';
@@ -56,7 +68,7 @@ export function createBody(body: BodyData, radius: number, textures: TextureSour
   label.position.set(0, radius, 0);
   root.add(label);
 
-  return { root, sphere };
+  return { root, sphere, pickables, extent };
 }
 
 /**
@@ -83,9 +95,7 @@ export function createRings(rings: RingData, bodyRadiusKm: number, textures: Tex
     visible: false, // erst mit Textur sichtbar – ohne Alpha wäre es eine Scheibe
   });
   applyTexture(textures, rings.texture, material);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = 'rings';
-  return mesh;
+  return new THREE.Mesh(geometry, material);
 }
 
 function orbitGeometry(points: Vec3[]): THREE.BufferGeometry {

@@ -38,12 +38,22 @@ export interface Orientation {
  * Vereinfachung: Pol fest (keine Präzession, keine Nutationsterme).
  */
 export function orientationEcliptic(pole: PoleOrientation, rotation: RotationModel, jd: number): Orientation {
+  return orientationAtMeridian(pole, primeMeridianDeg(rotation, jd));
+}
+
+/** Nullmeridian-Winkel W in Grad (unbeschränkt, nicht normiert) */
+export function primeMeridianDeg(rotation: RotationModel, jd: number): number {
+  return rotation.w0 + rotation.rate * (jd - JD_J2000);
+}
+
+/** Orientierung für einen vorgegebenen Nullmeridian-Winkel W (Grad) */
+export function orientationAtMeridian(pole: PoleOrientation, wDeg: number): Orientation {
   const a = pole.ra * DEG;
   const d = pole.dec * DEG;
   const p: Vec3 = [Math.cos(d) * Math.cos(a), Math.cos(d) * Math.sin(a), Math.sin(d)];
   const node: Vec3 = [-Math.sin(a), Math.cos(a), 0];
   const nodeEast = cross(p, node);
-  const w = (rotation.w0 + rotation.rate * (jd - JD_J2000)) * DEG;
+  const w = wDeg * DEG;
   const meridian: Vec3 = [0, 1, 2].map((i) => Math.cos(w) * node[i] + Math.sin(w) * nodeEast[i]) as Vec3;
   return {
     meridian: equatorialToEcliptic(meridian),
@@ -55,4 +65,29 @@ export function orientationEcliptic(pole: PoleOrientation, rotation: RotationMod
 /** Siderische Rotationsperiode in Stunden (negativ = rückläufig) */
 export function rotationPeriodHours(rotation: RotationModel): number {
   return (360 / rotation.rate) * 24;
+}
+
+/**
+ * Sichtbare Eigenrotation begrenzen: Bei hoher Zeitraffung dreht sich z. B. die Erde mehrmals pro Frame
+ * (Stroboskop-Effekt: scheinbar Stillstand oder Rückwärtsdrehung). Oberhalb der Grenze dreht der Körper
+ * mit gedeckelter Geschwindigkeit in der richtigen Richtung; darunter gilt der exakte Winkel.
+ */
+export const MAX_VISIBLE_TURNS_PER_SECOND = 0.5;
+
+/** Umdrehungen pro Echtzeit-Sekunde bei gegebener Simulationsrate (Tage/s, mit Vorzeichen) */
+export function spinTurnsPerSecond(rotation: RotationModel, simDaysPerSecond: number): number {
+  return (rotation.rate / 360) * simDaysPerSecond;
+}
+
+/** Nächster angezeigter W-Winkel: exakt, wenn langsam genug, sonst mit gedeckelter Drehgeschwindigkeit */
+export function displayedMeridianDeg(
+  rotation: RotationModel,
+  jd: number,
+  simDaysPerSecond: number,
+  previousDeg: number,
+  dtSeconds: number,
+): number {
+  const turns = spinTurnsPerSecond(rotation, simDaysPerSecond);
+  if (Math.abs(turns) <= MAX_VISIBLE_TURNS_PER_SECOND) return primeMeridianDeg(rotation, jd);
+  return previousDeg + Math.sign(turns) * MAX_VISIBLE_TURNS_PER_SECOND * 360 * dtSeconds;
 }

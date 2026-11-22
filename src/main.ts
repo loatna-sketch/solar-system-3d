@@ -13,7 +13,7 @@ import { createPostProcessing } from './scene/postprocessing';
 import { createTextureSource } from './scene/textures';
 import { createClock, tick } from './sim/clock';
 import { heliocentricPosition, orbitPoints } from './sim/kepler';
-import { orientationEcliptic } from './sim/rotation';
+import { displayedMeridianDeg, orientationAtMeridian } from './sim/rotation';
 import { dateToJd } from './sim/time';
 import { createBodyList } from './ui/bodyList';
 import { createTimeControls } from './ui/timeControls';
@@ -67,9 +67,12 @@ interface OrbitingBody {
 interface SpinningBody {
   body: BodyData;
   sphere: THREE.Mesh;
+  /** Zuletzt angezeigter Nullmeridian-Winkel (Grad) */
+  meridianDeg: number;
 }
 const orbiting: OrbitingBody[] = [];
 const spinning: SpinningBody[] = [];
+const pickTargets: THREE.Mesh[] = [];
 const focusTargets = new Map<string, FocusTarget>();
 let orbitEpochJd = clock.jd;
 let overviewRadius = 0;
@@ -78,10 +81,11 @@ const scenePoints = (orbit: OrbitalElements, jd: number) => orbitPoints(orbit, j
 
 for (const body of bodies) {
   const radius = sceneRadius(body.radiusKm);
-  const { root, sphere } = createBody(body, radius, textures);
+  const { root, sphere, pickables, extent } = createBody(body, radius, textures);
   scene.add(root);
-  focusTargets.set(body.id, { id: body.id, object: root, radius });
-  spinning.push({ body, sphere });
+  focusTargets.set(body.id, { id: body.id, object: root, radius, extent });
+  spinning.push({ body, sphere, meridianDeg: 0 });
+  pickTargets.push(...pickables);
   if (body.orbit) {
     const line = createOrbitLine(scenePoints(body.orbit, clock.jd));
     scene.add(line);
@@ -120,9 +124,12 @@ const axisX = new THREE.Vector3();
 const axisY = new THREE.Vector3();
 const axisZ = new THREE.Vector3();
 const basis = new THREE.Matrix4();
-function updateOrientations(): void {
-  for (const { body, sphere } of spinning) {
-    const { meridian, pole } = orientationEcliptic(body.pole, body.rotation, clock.jd);
+function updateOrientations(dtSeconds: number): void {
+  const simDaysPerSecond = clock.paused ? 0 : clock.direction * clock.rate;
+  for (const s of spinning) {
+    const { body, sphere } = s;
+    s.meridianDeg = displayedMeridianDeg(body.rotation, clock.jd, simDaysPerSecond, s.meridianDeg, dtSeconds);
+    const { meridian, pole } = orientationAtMeridian(body.pole, s.meridianDeg);
     axisX.set(...toSceneDirection(meridian));
     axisY.set(...toSceneDirection(pole));
     axisZ.crossVectors(axisX, axisY);
@@ -154,7 +161,7 @@ function select(id: string | null): void {
   bodyList.setActive(target ? target.id : null);
 }
 
-attachPicking(renderer.domElement, camera, spinning.map((s) => s.sphere), select);
+attachPicking(renderer.domElement, camera, pickTargets, select);
 // Labels: gleiche Klick-Erkennung wie auf dem Canvas, damit ein Drag, der auf einem Label beginnt, nichts auswählt
 onPointerClick(labelRenderer.domElement, (e) => {
   const id = (e.target as HTMLElement).dataset?.id;
@@ -179,6 +186,7 @@ window.addEventListener('resize', resize);
 resize();
 
 updatePositions();
+updateOrientations(0);
 cameraController.snapToOverview();
 bodyList.setActive(null);
 
@@ -192,13 +200,13 @@ renderer.setAnimationLoop((timeMs: number) => {
   tick(clock, dt);
   if (Math.abs(clock.jd - orbitEpochJd) > ORBIT_REBUILD_DAYS) rebuildOrbits();
   updatePositions();
-  updateOrientations();
+  updateOrientations(dt);
 
   // Reihenfolge: erst Positionen, dann Kamera mitführen, dann Nutzereingaben (OrbitControls)
   cameraController.update(dt);
   controls.enabled = !cameraController.isFlying;
   const focused = cameraController.focused;
-  controls.minDistance = focused ? minZoomDistance(focused.radius) : OVERVIEW_MIN_DISTANCE;
+  controls.minDistance = focused ? minZoomDistance(focused.extent ?? focused.radius) : OVERVIEW_MIN_DISTANCE;
   // Während des Flugs nicht: update() würde auf minDistance klemmen und Rest-Damping anwenden
   if (!cameraController.isFlying) controls.update();
   else camera.lookAt(controls.target);

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { bodies, type BodyData } from '../data/bodies';
 import { elementsAt, heliocentricPosition, type Vec3 } from './kepler';
-import { orientationEcliptic, poleEcliptic, rotationPeriodHours } from './rotation';
+import {
+  displayedMeridianDeg,
+  MAX_VISIBLE_TURNS_PER_SECOND,
+  orientationAtMeridian,
+  orientationEcliptic,
+  poleEcliptic,
+  primeMeridianDeg,
+  rotationPeriodHours,
+  spinTurnsPerSecond,
+} from './rotation';
 import { dateToJd, JD_J2000 } from './time';
 
 const body = (id: string): BodyData => bodies.find((b) => b.id === id)!;
@@ -91,5 +100,36 @@ describe('orientationEcliptic', () => {
     const diff = ((lon - expectedLon + 540) % 360) - 180;
     // Zeitgleichung ≤ ±16 min ≈ ±4°
     expect(Math.abs(diff)).toBeLessThan(5);
+  });
+});
+
+describe('Sichtbare Eigenrotation', () => {
+  const earth = body('earth');
+  const jd = 2460000.5;
+
+  it('orientationAtMeridian(W(jd)) entspricht orientationEcliptic(jd)', () => {
+    const a = orientationEcliptic(earth.pole, earth.rotation, jd);
+    const b = orientationAtMeridian(earth.pole, primeMeridianDeg(earth.rotation, jd));
+    a.meridian.forEach((v, i) => expect(b.meridian[i]).toBeCloseTo(v, 12));
+  });
+
+  it('nutzt den exakten Winkel, solange die Drehung langsam genug ist', () => {
+    // 1 Stunde/s → Erde 1/24 Umdrehung pro Sekunde
+    expect(Math.abs(spinTurnsPerSecond(earth.rotation, 1 / 24))).toBeLessThan(MAX_VISIBLE_TURNS_PER_SECOND);
+    expect(displayedMeridianDeg(earth.rotation, jd, 1 / 24, 0, 0.016)).toBe(primeMeridianDeg(earth.rotation, jd));
+  });
+
+  it('deckelt die Drehung bei hoher Zeitraffung und behält die Richtung', () => {
+    // 1 Woche/s → Erde ≈ 7 Umdrehungen pro Sekunde
+    const dt = 0.1;
+    const step = MAX_VISIBLE_TURNS_PER_SECOND * 360 * dt;
+    expect(displayedMeridianDeg(earth.rotation, jd, 7, 100, dt)).toBeCloseTo(100 + step);
+    expect(displayedMeridianDeg(earth.rotation, jd, -7, 100, dt)).toBeCloseTo(100 - step); // rückwärts
+    const uranus = body('uranus').rotation; // rückläufig: negatives Ẇ
+    expect(displayedMeridianDeg(uranus, jd, 7, 100, dt)).toBeCloseTo(100 - step);
+  });
+
+  it('steht bei Pause still (exakter Winkel)', () => {
+    expect(displayedMeridianDeg(earth.rotation, jd, 0, 123, 0.1)).toBe(primeMeridianDeg(earth.rotation, jd));
   });
 });

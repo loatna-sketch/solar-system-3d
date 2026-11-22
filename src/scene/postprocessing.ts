@@ -18,7 +18,11 @@ export function createPostProcessing(
   scene: THREE.Scene,
   camera: THREE.Camera,
 ): PostProcessing {
-  const composer = new EffectComposer(renderer);
+  // Eigenes Target mit MSAA: Der Composer rendert nicht mehr direkt auf den Canvas, `antialias: true` greift dort nicht.
+  // HalfFloat, damit die HDR-Sonne (> 1,0) den Bloom-Schwellwert erreicht.
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), BLOOM.strength, BLOOM.radius, BLOOM.threshold));
   composer.addPass(new OutputPass());
