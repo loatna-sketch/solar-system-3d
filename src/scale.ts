@@ -19,6 +19,36 @@ export const COMPRESSED: ScaleConfig = {
   distanceExponent: 0.5,
 };
 
+/** Astronomische Einheit in km (IAU 2012) */
+export const AU_KM = 149_597_870.7;
+
+/**
+ * Realer Maßstab: linear, Radien und Abstände in derselben Einheit.
+ * 1 AU bleibt wie im komprimierten Maßstab bei distanceFactor → Übersicht ändert sich nur moderat.
+ */
+export const REAL: ScaleConfig = {
+  radiusFactor: COMPRESSED.distanceFactor / AU_KM,
+  radiusExponent: 1,
+  distanceFactor: COMPRESSED.distanceFactor,
+  distanceExponent: 1,
+};
+
+/**
+ * Überblendung zweier Maßstäbe im Log-Raum: Faktor geometrisch, Exponent linear.
+ * Ergebnis ist wieder ein Potenzgesetz; t = 0 → a, t = 1 → b (exakt).
+ * Ein Übergang wirkt so über mehrere Größenordnungen gleichmäßig.
+ */
+export function blendScale(a: ScaleConfig, b: ScaleConfig, t: number): ScaleConfig {
+  const geo = (x: number, y: number) => x ** (1 - t) * y ** t;
+  const lin = (x: number, y: number) => x + (y - x) * t;
+  return {
+    radiusFactor: geo(a.radiusFactor, b.radiusFactor),
+    radiusExponent: lin(a.radiusExponent, b.radiusExponent),
+    distanceFactor: geo(a.distanceFactor, b.distanceFactor),
+    distanceExponent: lin(a.distanceExponent, b.distanceExponent),
+  };
+}
+
 export function sceneRadius(radiusKm: number, cfg: ScaleConfig = COMPRESSED): number {
   return cfg.radiusFactor * Math.pow(radiusKm, cfg.radiusExponent);
 }

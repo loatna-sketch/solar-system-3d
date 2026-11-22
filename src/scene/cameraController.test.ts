@@ -111,6 +111,41 @@ describe('CameraController', () => {
     expect(camera.position.equals(before)).toBe(true);
   });
 
+  it('rescale im Follow skaliert den Abstand mit dem Radius und behält die Blickrichtung', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const direction = camera.position.clone().sub(target).normalize();
+    const ratio = 1e-3;
+    focus.radius *= ratio;
+    controller.rescale(OVERVIEW_RADIUS * 5, ratio);
+    planet.position.multiplyScalar(5); // Maßstab verschiebt auch die Position
+    controller.update(0.016);
+    expect(target.distanceTo(planet.position)).toBeCloseTo(0);
+    const offset = camera.position.clone().sub(target);
+    expect(offset.length()).toBeCloseTo(focusDistance(focus.radius), 8);
+    expect(offset.normalize().dot(direction)).toBeCloseTo(1);
+  });
+
+  it('rescale in der Übersicht skaliert den Abstand mit dem Übersichtsradius (Nutzer-Zoom bleibt relativ)', () => {
+    const { camera, controller } = setup();
+    camera.position.multiplyScalar(0.5); // Nutzer hat hineingezoomt
+    const before = camera.position.clone();
+    controller.rescale(OVERVIEW_RADIUS * 4, 123);
+    expect(camera.position.distanceTo(before.multiplyScalar(4))).toBeCloseTo(0);
+  });
+
+  it('landet bei focusDistance des neuen Radius, wenn der Maßstab mitten im Flug wechselt', () => {
+    const { camera, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 10, 0.05);
+    focus.radius = 1e-4;
+    controller.rescale(OVERVIEW_RADIUS * 5, 1e-4 / 0.5);
+    run(controller, 30, 0.05);
+    expect(controller.mode).toBe('following');
+    expect(camera.position.distanceTo(planet.position)).toBeCloseTo(focusDistance(1e-4), 10);
+  });
+
   it('ignoriert negative Zeitschritte', () => {
     const { controller, focus } = setup();
     controller.focus(focus);

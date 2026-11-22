@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bodies } from './data/bodies';
-import { COMPRESSED, sceneDistance, sceneRadius, toScene } from './scale';
+import { AU_KM, blendScale, COMPRESSED, REAL, sceneDistance, sceneRadius, toScene, type ScaleConfig } from './scale';
 
 type Body = (typeof bodies)[number];
 const semiMajorAxis = (b: Body) => b.orbit?.a[0] ?? 0;
@@ -23,15 +23,60 @@ describe('Skalierung', () => {
     expect(byScene).toEqual(byKm);
   });
 
-  it('lässt im komprimierten Maßstab keine Körper überlappen (Aphel innen vs. Perihel außen, inkl. Sonne)', () => {
-    const sorted = [...bodies].sort((a, b) => semiMajorAxis(a) - semiMajorAxis(b));
-    for (let i = 1; i < sorted.length; i++) {
-      const inner = sorted[i - 1];
-      const outer = sorted[i];
-      const innerEdge = sceneDistance(aphelion(inner)) + sceneRadius(inner.radiusKm);
-      const outerEdge = sceneDistance(perihelion(outer)) - sceneRadius(outer.radiusKm);
-      expect(outerEdge, `${inner.id} ↔ ${outer.id}`).toBeGreaterThan(innerEdge);
+  it.each([0, 0.1, 0.25, 0.5, 0.75, 0.9, 1])(
+    'lässt bei Überblendung t = %s keine Körper überlappen (Aphel innen vs. Perihel außen, inkl. Sonne)',
+    (t) => {
+      const cfg = blendScale(COMPRESSED, REAL, t);
+      const sorted = [...bodies].sort((a, b) => semiMajorAxis(a) - semiMajorAxis(b));
+      for (let i = 1; i < sorted.length; i++) {
+        const inner = sorted[i - 1];
+        const outer = sorted[i];
+        const innerEdge = sceneDistance(aphelion(inner), cfg) + sceneRadius(inner.radiusKm, cfg);
+        const outerEdge = sceneDistance(perihelion(outer), cfg) - sceneRadius(outer.radiusKm, cfg);
+        expect(outerEdge, `${inner.id} ↔ ${outer.id}`).toBeGreaterThan(innerEdge);
+      }
+    },
+  );
+});
+
+describe('realer Maßstab', () => {
+  it('verwendet für Radien und Abstände dieselbe Einheit', () => {
+    expect(sceneRadius(AU_KM, REAL)).toBeCloseTo(sceneDistance(1, REAL), 12);
+  });
+
+  it('ist linear', () => {
+    expect(sceneRadius(6371 * 2, REAL)).toBeCloseTo(2 * sceneRadius(6371, REAL), 15);
+    expect(sceneDistance(30, REAL)).toBeCloseTo(30 * sceneDistance(1, REAL), 12);
+  });
+
+  it('bildet 1 AU wie der komprimierte Maßstab ab', () => {
+    expect(sceneDistance(1, REAL)).toBe(sceneDistance(1, COMPRESSED));
+  });
+});
+
+describe('blendScale', () => {
+  it('liefert an den Endpunkten exakt die beiden Maßstäbe', () => {
+    expect(blendScale(COMPRESSED, REAL, 0)).toEqual(COMPRESSED);
+    expect(blendScale(COMPRESSED, REAL, 1)).toEqual(REAL);
+  });
+
+  it('verändert Radien und Abstände monoton in t (log-linear)', () => {
+    const ts = Array.from({ length: 11 }, (_, i) => i / 10);
+    const cfgs: ScaleConfig[] = ts.map((t) => blendScale(COMPRESSED, REAL, t));
+    for (const radiusKm of [2439.7, 6371, 69911, 695700]) {
+      const r = cfgs.map((c) => sceneRadius(radiusKm, c));
+      for (let i = 1; i < r.length; i++) expect(r[i]).toBeLessThan(r[i - 1]);
     }
+    // Abstände: unter 1 AU schrumpfen sie (√r > r), darüber wachsen sie
+    for (const au of [0.39, 5.2, 30.07]) {
+      const d = cfgs.map((c) => sceneDistance(au, c));
+      for (let i = 1; i < d.length; i++) expect(Math.sign(d[i] - d[i - 1])).toBe(Math.sign(au - 1));
+    }
+  });
+
+  it('interpoliert im Log-Raum (Mitte = geometrisches Mittel)', () => {
+    const mid = sceneRadius(6371, blendScale(COMPRESSED, REAL, 0.5));
+    expect(mid).toBeCloseTo(Math.sqrt(sceneRadius(6371, COMPRESSED) * sceneRadius(6371, REAL)), 12);
   });
 });
 

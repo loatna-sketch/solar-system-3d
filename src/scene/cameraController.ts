@@ -5,6 +5,7 @@ export interface FocusTarget {
   id: string;
   /** Objekt direkt unter der Szene; seine position ist die Weltposition */
   object: THREE.Object3D;
+  /** Radius in Szenen-Einheiten; ändert sich mit dem Maßstab */
   radius: number;
 }
 
@@ -16,7 +17,6 @@ const OVERVIEW_DIRECTION = new THREE.Vector3(0, 0.45, 0.89).normalize();
 /**
  * Steuert Kamera und OrbitControls-Target: Flug zu einem Körper, anschließend Mitführen (Follow).
  * Bewusst ohne DOM und ohne OrbitControls-Abhängigkeit → in Node testbar.
- * Floating Origin (M5) kann hier zentral ergänzt werden.
  */
 export class CameraController {
   mode: CameraMode = 'overview';
@@ -30,7 +30,6 @@ export class CameraController {
    */
   private readonly fromDirection = new THREE.Vector3();
   private fromLength = 0;
-  private endLength = 0;
   private readonly rotation = new THREE.Quaternion();
   private readonly partialRotation = new THREE.Quaternion();
   private readonly lastTargetPosition = new THREE.Vector3();
@@ -42,8 +41,8 @@ export class CameraController {
     private readonly camera: THREE.PerspectiveCamera,
     /** Wird in-place verändert (OrbitControls.target) */
     private readonly target: THREE.Vector3,
-    /** Radius der Kugel, die in der Übersicht vollständig sichtbar sein soll */
-    private readonly overviewRadius: number,
+    /** Radius der Kugel, die in der Übersicht vollständig sichtbar sein soll (ändert sich mit dem Maßstab) */
+    private overviewRadius: number,
     private readonly flightSeconds = 1.2,
   ) {}
 
@@ -78,13 +77,26 @@ export class CameraController {
     if (this.mode !== 'overview') return;
     this.offset.subVectors(this.camera.position, this.target);
     if (this.offset.lengthSq() === 0) this.offset.copy(OVERVIEW_DIRECTION);
-    const distance = fitDistance(this.overviewRadius, this.camera.fov, this.camera.aspect);
-    this.camera.position.copy(this.target).add(this.offset.normalize().multiplyScalar(distance));
+    this.camera.position.copy(this.target).add(this.offset.normalize().multiplyScalar(this.overviewDistance()));
+  }
+
+  /**
+   * Nach einem Maßstabswechsel: Bildausschnitt erhalten, indem der Kamera-Offset mitskaliert wird.
+   * focusRadiusRatio = neuer / alter Radius des fokussierten Körpers. Ein laufender Flug passt sein Ziel selbst an.
+   */
+  rescale(overviewRadius: number, focusRadiusRatio: number): void {
+    const overviewRatio = overviewRadius / this.overviewRadius;
+    this.overviewRadius = overviewRadius;
+    const ratio = this.mode === 'overview' ? overviewRatio : this.mode === 'following' ? focusRadiusRatio : 1;
+    this.offset.subVectors(this.camera.position, this.target).multiplyScalar(ratio);
+    this.camera.position.copy(this.target).add(this.offset);
   }
 
   update(dtSeconds: number): void {
     if (this.mode === 'flying') {
       this.elapsed += Math.max(dtSeconds, 0);
+      // Ziel-Abstand jedes Frame neu: Der Maßstab (und damit der Radius) kann sich während des Flugs ändern
+      const endLength = this.focused ? focusDistance(this.focused.radius) : this.overviewDistance();
       const t = easeInOutCubic(this.elapsed / this.flightSeconds);
       // Ziel wird jedes Frame neu gelesen: Planeten bewegen sich während des Flugs weiter
       this.currentGoal(this.goal);
@@ -93,7 +105,7 @@ export class CameraController {
       this.offset
         .copy(this.fromDirection)
         .applyQuaternion(this.partialRotation)
-        .multiplyScalar(THREE.MathUtils.lerp(this.fromLength, this.endLength, t));
+        .multiplyScalar(THREE.MathUtils.lerp(this.fromLength, endLength, t));
       this.camera.position.copy(this.target).add(this.offset);
       if (this.elapsed >= this.flightSeconds) {
         this.mode = this.focused ? 'following' : 'overview';
@@ -112,7 +124,6 @@ export class CameraController {
     this.offset.subVectors(this.camera.position, this.target);
     this.fromLength = this.offset.length();
     this.fromDirection.copy(this.fromLength > 0 ? this.offset.divideScalar(this.fromLength) : OVERVIEW_DIRECTION);
-    this.endLength = endOffset.length();
     // setFromUnitVectors wählt bei exakt entgegengesetzten Richtungen selbst eine Drehachse
     this.rotation.setFromUnitVectors(this.fromDirection, endOffset.clone().normalize());
     this.elapsed = 0;
@@ -123,8 +134,11 @@ export class CameraController {
     return this.focused ? out.copy(this.focused.object.position) : out.set(0, 0, 0);
   }
 
+  private overviewDistance(): number {
+    return fitDistance(this.overviewRadius, this.camera.fov, this.camera.aspect);
+  }
+
   private overviewOffset(): THREE.Vector3 {
-    const distance = fitDistance(this.overviewRadius, this.camera.fov, this.camera.aspect);
-    return OVERVIEW_DIRECTION.clone().multiplyScalar(distance);
+    return OVERVIEW_DIRECTION.clone().multiplyScalar(this.overviewDistance());
   }
 }

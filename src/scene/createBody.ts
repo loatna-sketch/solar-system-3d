@@ -3,8 +3,9 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { BodyData } from '../data/bodies';
 import type { Vec3 } from '../sim/kepler';
 
-export function createBodyMesh(body: BodyData, radius: number): THREE.Mesh {
-  const geometry = new THREE.SphereGeometry(radius, 64, 32);
+/** Einheitskugel; der Radius in Szenen-Einheiten kommt über mesh.scale (ändert sich mit dem Maßstab) */
+export function createBodyMesh(body: BodyData): THREE.Mesh {
+  const geometry = new THREE.SphereGeometry(1, 64, 32);
   const material =
     body.type === 'star'
       ? new THREE.MeshBasicMaterial({ color: body.color })
@@ -17,7 +18,7 @@ export function createBodyMesh(body: BodyData, radius: number): THREE.Mesh {
   div.textContent = body.name;
   div.dataset.id = body.id; // klickbar → Fokus (siehe main.ts)
   const label = new CSS2DObject(div);
-  label.position.set(0, radius, 0);
+  label.position.set(0, 1, 0); // Nordpol; skaliert mit dem Mesh
   mesh.add(label);
 
   return mesh;
