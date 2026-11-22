@@ -38,3 +38,13 @@ export function toScene([x, y, z]: Vec3, cfg: ScaleConfig = COMPRESSED): Vec3 {
   const k = sceneDistance(r, cfg) / r;
   return [x * k, z * k, -y * k];
 }
+
+/** Richtungsvektor ekliptikal → Szene: nur der Achsentausch (x, y, z) → (x, z, −y), keine Kompression */
+export function toSceneDirection([x, y, z]: Vec3): Vec3 {
+  return [x, z, -y];
+}
+
+/** Ringradius in Szenen-Einheiten: skaliert im selben Verhältnis wie der Körperradius */
+export function sceneRingRadius(ringKm: number, bodyRadiusKm: number, cfg: ScaleConfig = COMPRESSED): number {
+  return sceneRadius(bodyRadiusKm, cfg) * (ringKm / bodyRadiusKm);
+}

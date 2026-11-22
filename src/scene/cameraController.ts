@@ -6,6 +6,8 @@ export interface FocusTarget {
   /** Objekt direkt unter der Szene; seine position ist die Weltposition */
   object: THREE.Object3D;
   radius: number;
+  /** Äußerster Radius inkl. Ringe; Standard = radius */
+  extent?: number;
 }
 
 export type CameraMode = 'overview' | 'flying' | 'following';
