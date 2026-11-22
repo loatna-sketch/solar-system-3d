@@ -135,6 +135,43 @@ describe('CameraController', () => {
     expect(camera.position.distanceTo(before.multiplyScalar(4))).toBeCloseTo(0);
   });
 
+  it('rescale im Follow skaliert auch ein gepanntes Target relativ zum Körper', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const pan = new THREE.Vector3(1, 0.5, 0);
+    target.add(pan); // Nutzer hat per Rechtsklick verschoben
+    camera.position.add(pan);
+    const offsetBefore = camera.position.clone().sub(target);
+    const ratio = 1e-3;
+    controller.rescale(OVERVIEW_RADIUS * 5, ratio);
+    planet.position.multiplyScalar(5);
+    controller.update(0.016);
+    expect(target.clone().sub(planet.position).distanceTo(pan.clone().multiplyScalar(ratio))).toBeCloseTo(0, 10);
+    expect(camera.position.clone().sub(target).distanceTo(offsetBefore.multiplyScalar(ratio))).toBeCloseTo(0, 10);
+  });
+
+  it('rescale in der Übersicht skaliert auch ein gepanntes Target um den Ursprung', () => {
+    const { camera, target, controller } = setup();
+    target.set(20, 0, 0);
+    camera.position.add(target);
+    const cameraBefore = camera.position.clone();
+    controller.rescale(OVERVIEW_RADIUS * 4, 123);
+    expect(target.distanceTo(new THREE.Vector3(80, 0, 0))).toBeCloseTo(0);
+    expect(camera.position.distanceTo(cameraBefore.multiplyScalar(4))).toBeCloseTo(0);
+  });
+
+  it('rescale ändert während eines Flugs nichts an Kamera und Target', () => {
+    const { camera, target, controller, focus } = setup();
+    controller.focus(focus);
+    run(controller, 10, 0.05);
+    const cameraBefore = camera.position.clone();
+    const targetBefore = target.clone();
+    controller.rescale(OVERVIEW_RADIUS * 5, 1e-3);
+    expect(camera.position.equals(cameraBefore)).toBe(true);
+    expect(target.equals(targetBefore)).toBe(true);
+  });
+
   it('landet bei focusDistance des neuen Radius, wenn der Maßstab mitten im Flug wechselt', () => {
     const { camera, controller, planet, focus } = setup();
     controller.focus(focus);

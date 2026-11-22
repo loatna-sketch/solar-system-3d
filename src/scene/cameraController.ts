@@ -36,6 +36,7 @@ export class CameraController {
   private readonly goal = new THREE.Vector3();
   private readonly offset = new THREE.Vector3();
   private static readonly IDENTITY = new THREE.Quaternion();
+  private static readonly ORIGIN = new THREE.Vector3();
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -81,15 +82,20 @@ export class CameraController {
   }
 
   /**
-   * Nach einem Maßstabswechsel: Bildausschnitt erhalten, indem der Kamera-Offset mitskaliert wird.
-   * focusRadiusRatio = neuer / alter Radius des fokussierten Körpers. Ein laufender Flug passt sein Ziel selbst an.
+   * Nach einem Maßstabswechsel: Bildausschnitt erhalten. Kamera und Target werden gemeinsam um einen Bezugspunkt
+   * skaliert (Follow: Körper, Übersicht: Ursprung), damit auch ein gepanntes Target relativ an seinem Platz bleibt.
+   * Vor dem Setzen der neuen Positionen aufrufen: Im Follow ist der Bezugspunkt die alte Körperposition,
+   * den Sprung zur neuen gleicht update() aus. focusRadiusRatio = neuer / alter Radius des fokussierten Körpers.
+   * Ein laufender Flug passt sein Ziel selbst an.
    */
   rescale(overviewRadius: number, focusRadiusRatio: number): void {
     const overviewRatio = overviewRadius / this.overviewRadius;
     this.overviewRadius = overviewRadius;
-    const ratio = this.mode === 'overview' ? overviewRatio : this.mode === 'following' ? focusRadiusRatio : 1;
-    this.offset.subVectors(this.camera.position, this.target).multiplyScalar(ratio);
-    this.camera.position.copy(this.target).add(this.offset);
+    if (this.mode === 'flying') return;
+    const followed = this.mode === 'following' ? this.focused : null;
+    const anchor = followed ? followed.object.position : CameraController.ORIGIN;
+    const ratio = followed ? focusRadiusRatio : overviewRatio;
+    for (const v of [this.camera.position, this.target]) v.sub(anchor).multiplyScalar(ratio).add(anchor);
   }
 
   update(dtSeconds: number): void {

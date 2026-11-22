@@ -31,3 +31,5 @@ wird erst nötig, wenn Shader `modelMatrix`/`viewMatrix`/`cameraPosition` nutzen
 - Bahnlinie bei Neptun (real, Fokus) nicht sichtbar – bestätigt das Sagitta-Problem → M5.3.
 - near = 1e-7 auch im komprimierten Maßstab ohne Tiefenartefakte.
 - Reale Übersicht: Labels der inneren Planeten überlappen (erwartet; ggf. M7).
+- Bekannte Einschränkung: Panning und sofort M → OrbitControls-Damping wendet den Rest-Pan noch einige Frames
+  in alten Einheiten an (Target driftet kurz). Kamera/Target selbst werden beim Umschalten um den Fokus skaliert.
