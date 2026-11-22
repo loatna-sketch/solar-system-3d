@@ -24,6 +24,28 @@ export interface OrbitalElements {
   longNode: ElementWithRate;
 }
 
+/** Nordpol-Richtung nach IAU (WGCCRE), ICRF/J2000, in Grad */
+export interface PoleOrientation {
+  ra: number;
+  dec: number;
+}
+
+/**
+ * Nullmeridian nach IAU: W = w0 + rate · d (Grad, d = Tage seit J2000).
+ * rate < 0 = rückläufige Rotation (Venus, Uranus); der IAU-Nordpol liegt immer auf der Nordseite der invariablen Ebene.
+ */
+export interface RotationModel {
+  w0: number;
+  rate: number;
+}
+
+export interface RingData {
+  innerKm: number;
+  outerKm: number;
+  /** Radialer Streifen (u = innen → außen) mit Alphakanal */
+  texture: string;
+}
+
 export interface BodyData {
   id: string;
   /** Anzeigename (deutsch) */
@@ -31,8 +53,13 @@ export interface BodyData {
   type: BodyType;
   /** Mittlerer Radius in km */
   radiusKm: number;
-  /** Platzhalterfarbe bis zu den Texturen (M4) */
+  /** Grundfarbe, solange die Textur lädt oder falls sie fehlt */
   color: string;
+  /** Dateiname in public/textures/ (equirektangular, Länge 0° in der Bildmitte) */
+  texture: string;
+  pole: PoleOrientation;
+  rotation: RotationModel;
+  rings?: RingData;
   /** Heliozentrische Bahn; fehlt bei der Sonne */
   orbit?: OrbitalElements;
 }
