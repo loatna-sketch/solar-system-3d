@@ -78,3 +78,8 @@ export function toSceneDirection([x, y, z]: Vec3): Vec3 {
 export function sceneRingRadius(ringKm: number, bodyRadiusKm: number, cfg: ScaleConfig = COMPRESSED): number {
   return sceneRadius(bodyRadiusKm, cfg) * (ringKm / bodyRadiusKm);
 }
+
+/** Äußerster Radius eines Körpers in Szenen-Einheiten: Ringe, sonst Körperradius (für Zoomgrenze und Abstände) */
+export function sceneExtent(body: { radiusKm: number; rings?: { outerKm: number } }, cfg: ScaleConfig = COMPRESSED): number {
+  return body.rings ? sceneRingRadius(body.rings.outerKm, body.radiusKm, cfg) : sceneRadius(body.radiusKm, cfg);
+}

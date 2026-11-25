@@ -6,6 +6,7 @@ import {
   COMPRESSED,
   REAL,
   sceneDistance,
+  sceneExtent,
   sceneRadius,
   sceneRingRadius,
   toScene,
@@ -17,9 +18,6 @@ type Body = (typeof bodies)[number];
 const semiMajorAxis = (b: Body) => b.orbit?.a[0] ?? 0;
 const perihelion = (b: Body) => semiMajorAxis(b) * (1 - (b.orbit?.e[0] ?? 0));
 const aphelion = (b: Body) => semiMajorAxis(b) * (1 + (b.orbit?.e[0] ?? 0));
-/** Äußerste Ausdehnung in der Szene: Ringe, sonst Körperradius */
-const extent = (b: Body, cfg: ScaleConfig = COMPRESSED) =>
-  b.rings ? sceneRingRadius(b.rings.outerKm, b.radiusKm, cfg) : sceneRadius(b.radiusKm, cfg);
 
 describe('Skalierung', () => {
   it('ist streng monoton', () => {
@@ -45,8 +43,8 @@ describe('Skalierung', () => {
       for (let i = 1; i < sorted.length; i++) {
         const inner = sorted[i - 1];
         const outer = sorted[i];
-        const innerEdge = sceneDistance(aphelion(inner), cfg) + extent(inner, cfg);
-        const outerEdge = sceneDistance(perihelion(outer), cfg) - extent(outer, cfg);
+        const innerEdge = sceneDistance(aphelion(inner), cfg) + sceneExtent(inner, cfg);
+        const outerEdge = sceneDistance(perihelion(outer), cfg) - sceneExtent(outer, cfg);
         expect(outerEdge, `${inner.id} ↔ ${outer.id}`).toBeGreaterThan(innerEdge);
       }
     },

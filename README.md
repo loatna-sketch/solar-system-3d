@@ -62,7 +62,7 @@ Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumsspr
 - [x] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
 - [ ] M5 Maßstab real ↔ komprimiert, Floating Origin — M5.1 Umschalter ✓, M5.2 animierter Übergang, M5.3 Präzision (Bahnlinien, kamerarelatives Rendern)
 - [ ] M6 Monde, Zwergplaneten, Asteroidengürtel
-- [ ] M7 Info-Panel, Touch, Performance
+- [ ] M7 Info-Panel, Touch, Performance; Label-Verdeckung durch Ringe, Ring-Picking nur bei geladener Textur
 - [ ] M8 Stretch: VSOP87, Raumsonden, WebXR, N-Body-Sandbox
 
 ## Lizenz der Texturen

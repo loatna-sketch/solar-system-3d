@@ -17,7 +17,7 @@ wird erst nötig, wenn Shader `modelMatrix`/`viewMatrix`/`cameraPosition` nutzen
 
 ## Inkremente
 
-- **M5.1 ✓** Spike + Maßstab als Laufzeitzustand: `REAL`, `blendScale` (Log-Raum), Radius über `mesh.scale`,
+- **M5.1 ✓** Spike + Maßstab als Laufzeitzustand: `REAL`, `blendScale` (Log-Raum), Radius über `root.scale` (Kugel und Ringe in Körperradien),
   `CameraController.rescale`, Flug-Zielabstand pro Frame, sofortiges Umschalten (Taste M / Button).
 - **M5.2** Animierter Übergang (~2 s) über `blendScale(COMPRESSED, REAL, t)`: pro Frame Radien, Bahnlinien
   (8 × N × `toScene`), `rescale` mit Radius-Verhältnis zum Vorframe. Tests: Abstand/Radius bleibt konstant.

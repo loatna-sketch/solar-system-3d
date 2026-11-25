@@ -8,7 +8,7 @@ import {
   REAL,
   sceneDistance,
   sceneRadius,
-  sceneRingRadius,
+  sceneExtent,
   toScene,
   toSceneDirection,
   type ScaleConfig,
@@ -123,7 +123,7 @@ function applyRadii(): void {
   overviewRadius = 0;
   for (const { data, root, target } of sceneBodies) {
     target.radius = sceneRadius(data.radiusKm, scaleCfg);
-    target.extent = data.rings ? sceneRingRadius(data.rings.outerKm, data.radiusKm, scaleCfg) : target.radius;
+    target.extent = sceneExtent(data, scaleCfg);
     root.scale.setScalar(target.radius);
     if (data.orbit) {
       const aphelion = data.orbit.a[0] * (1 + data.orbit.e[0]);
