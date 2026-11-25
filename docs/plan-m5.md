@@ -19,8 +19,10 @@ wird erst nötig, wenn Shader `modelMatrix`/`viewMatrix`/`cameraPosition` nutzen
 
 - **M5.1 ✓** Spike + Maßstab als Laufzeitzustand: `REAL`, `blendScale` (Log-Raum), Radius über `root.scale` (Kugel und Ringe in Körperradien),
   `CameraController.rescale`, Flug-Zielabstand pro Frame, sofortiges Umschalten (Taste M / Button).
-- **M5.2** Animierter Übergang (~2 s) über `blendScale(COMPRESSED, REAL, t)`: pro Frame Radien, Bahnlinien
+- **M5.2 ✓** Animierter Übergang (~2 s) über `blendScale(COMPRESSED, REAL, t)`: pro Frame Radien, Bahnlinien
   (8 × N × `toScene`), `rescale` mit Radius-Verhältnis zum Vorframe. Tests: Abstand/Radius bleibt konstant.
+  Umgesetzt: `scaleTransition.ts` (linearer Fortschritt, geglätteter Wert, Umkehr ohne Sprung, Dauer 0 bei
+  `prefers-reduced-motion`); Bahnlinien-Puffer werden in-place aktualisiert.
 - **M5.3** Präzision: `anchorPoints(points64, anchor) → Float32Array`, Neubau bei Drift; 4096 Segmente;
   `renderWithOrigin()`. Tests: float32-Fehler nahe Anker < 1e-3 R (Neptun), max. Sagitta < 0,1 R (REAL).
 

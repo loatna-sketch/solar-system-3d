@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bodies, type BodyData, type OrbitalElements } from './data/bodies';
 import {
+  blendScale,
   COMPRESSED,
   REAL,
   sceneDistance,
@@ -25,11 +26,14 @@ import { heliocentricPosition, orbitPoints } from './sim/kepler';
 import { displayedMeridianDeg, orientationAtMeridian } from './sim/rotation';
 import { dateToJd } from './sim/time';
 import { createBodyList } from './ui/bodyList';
+import { createScaleTransition, stepTransition, toggleTarget, transitionValue } from './scaleTransition';
 import { createScaleToggle } from './ui/scaleToggle';
 import { createTimeControls } from './ui/timeControls';
 
 /** Bahnelemente driften langsam; Bahnlinien werden nach so vielen Tagen Abweichung neu berechnet */
 const ORBIT_REBUILD_DAYS = 50 * 365.25;
+/** Dauer des animierten Maßstabswechsels; bei „reduzierte Bewegung“ sofort */
+const SCALE_TRANSITION_SECONDS = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 2;
 /** Größter Zoom-Abstand als Vielfaches des Übersichtsabstands */
 const MAX_ZOOM_FACTOR = 4;
 /**
@@ -220,19 +224,25 @@ const timeControls = createTimeControls(timeControlsRoot, clock, () => {
   rebuildOrbits();
   updatePositions();
 });
-const scaleToggle = createScaleToggle(timeControlsRoot, () => setScale(scaleCfg === REAL ? COMPRESSED : REAL));
+const scaleTransition = createScaleTransition(SCALE_TRANSITION_SECONDS);
+const scaleToggle = createScaleToggle(timeControlsRoot, () => {
+  toggleTarget(scaleTransition);
+  scaleToggle.setReal(scaleTransition.target === 1); // zeigt das Ziel, auch während des Übergangs
+});
 scaleToggle.setReal(false);
 
-/** Maßstab sofort wechseln; der Bildausschnitt relativ zum Fokus bleibt erhalten */
-function setScale(cfg: ScaleConfig): void {
+/**
+ * Maßstab auf den aktuellen Überblendwert setzen (pro Frame während des Übergangs).
+ * Vor updatePositions aufrufen: rescale skaliert um die alte Körperposition, den Sprung gleicht der Follow aus.
+ * Der Bildausschnitt relativ zum Fokus bleibt so über alle Frames erhalten.
+ */
+function applyScale(): void {
   const focused = cameraController.focused;
   const oldRadius = focused?.radius ?? 1;
-  scaleCfg = cfg;
+  scaleCfg = blendScale(COMPRESSED, REAL, transitionValue(scaleTransition));
   applyRadii();
   rebuildOrbits();
   cameraController.rescale(overviewRadius, focused ? focused.radius / oldRadius : 1);
-  updatePositions();
-  scaleToggle.setReal(cfg === REAL);
 }
 
 function resize(): void {
@@ -260,7 +270,8 @@ renderer.setAnimationLoop((timeMs: number) => {
   lastFrameMs = timeMs;
 
   tick(clock, dt);
-  if (Math.abs(clock.jd - orbitEpochJd) > ORBIT_REBUILD_DAYS) rebuildOrbits();
+  if (stepTransition(scaleTransition, dt)) applyScale();
+  else if (Math.abs(clock.jd - orbitEpochJd) > ORBIT_REBUILD_DAYS) rebuildOrbits();
   updatePositions();
   updateOrientations(dt);
 
