@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { BodyData, RingData } from '../data/bodies';
-import { sceneRingRadius } from '../scale';
 import type { Vec3 } from '../sim/kepler';
 import type { TextureSource } from './textures';
 
@@ -9,14 +8,15 @@ import type { TextureSource } from './textures';
 const SUN_HDR = 1.6;
 
 export interface BodyObjects {
-  /** Position + Label; dreht sich nicht (Label bleibt „oben“) */
+  /**
+   * Position + Label; dreht sich nicht (Label bleibt „oben“).
+   * root.scale = Radius in Szenen-Einheiten (ändert sich mit dem Maßstab), darunter alles in Körperradien.
+   */
   root: THREE.Group;
   /** Kugel mit Orientierung/Eigenrotation; Ringe hängen daran */
   sphere: THREE.Mesh;
   /** Für Picking: Kugel und ggf. Ringe, jeweils mit name = Körper-ID */
   pickables: THREE.Mesh[];
-  /** Äußerster Radius in Szenen-Einheiten (inkl. Ringe) */
-  extent: number;
 }
 
 function applyTexture(
@@ -36,7 +36,7 @@ function applyTexture(
     .catch((err) => console.warn(`Textur ${file} nicht geladen`, err));
 }
 
-export function createBody(body: BodyData, radius: number, textures: TextureSource): BodyObjects {
+export function createBody(body: BodyData, textures: TextureSource): BodyObjects {
   const root = new THREE.Group();
   root.name = body.id;
 
@@ -46,18 +46,16 @@ export function createBody(body: BodyData, radius: number, textures: TextureSour
     : new THREE.MeshStandardMaterial({ color: body.color, roughness: 0.95, metalness: 0 });
   applyTexture(textures, body.texture, material, isStar ? SUN_HDR : 1);
 
-  const sphere = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 32), material);
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), material);
   sphere.name = body.id; // Picking liefert die ID
   root.add(sphere);
 
   const pickables: THREE.Mesh[] = [sphere];
-  let extent = radius;
   if (body.rings) {
     const rings = createRings(body.rings, body.radiusKm, textures);
     rings.name = body.id; // Klick auf die Ringe wählt den Planeten
     sphere.add(rings);
     pickables.push(rings);
-    extent = sceneRingRadius(body.rings.outerKm, body.radiusKm);
   }
 
   const div = document.createElement('div');
@@ -65,19 +63,19 @@ export function createBody(body: BodyData, radius: number, textures: TextureSour
   div.textContent = body.name;
   div.dataset.id = body.id; // klickbar → Fokus (siehe main.ts)
   const label = new CSS2DObject(div);
-  label.position.set(0, radius, 0);
+  label.position.set(0, 1, 0); // über dem Körper; skaliert mit root
   root.add(label);
 
-  return { root, sphere, pickables, extent };
+  return { root, sphere, pickables };
 }
 
 /**
- * Ringe in der Äquatorebene (lokale XZ-Ebene der Kugel).
+ * Ringe in der Äquatorebene (lokale XZ-Ebene der Kugel), in Körperradien.
  * Die Textur ist ein radialer Streifen → UV radial umrechnen: u = 0 innen, u = 1 außen.
  */
 export function createRings(rings: RingData, bodyRadiusKm: number, textures: TextureSource): THREE.Mesh {
-  const inner = sceneRingRadius(rings.innerKm, bodyRadiusKm);
-  const outer = sceneRingRadius(rings.outerKm, bodyRadiusKm);
+  const inner = rings.innerKm / bodyRadiusKm;
+  const outer = rings.outerKm / bodyRadiusKm;
   const geometry = new THREE.RingGeometry(inner, outer, 128, 1);
   const pos = geometry.attributes.position;
   const uv = geometry.attributes.uv;

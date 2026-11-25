@@ -19,10 +19,10 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 
 - `src/data/bodies.json` – Himmelskörper als Daten (Radius, Kepler-Bahnelemente mit Änderungsraten)
 - `src/sim/` – reine Simulationslogik ohne Three.js: Julianisches Datum (`time.ts`), Kepler-Bahnen (`kepler.ts`), Simulationsuhr (`clock.ts`), Orientierung/Eigenrotation (`rotation.ts`)
-- `src/scale.ts` – einzige Stelle, die physikalische Größen auf Szenen-Einheiten abbildet (Achsentausch + komprimierter Maßstab)
+- `src/scale.ts` – einzige Stelle, die physikalische Größen auf Szenen-Einheiten abbildet (Achsentausch; Maßstab komprimiert/real als Potenzgesetz)
 - `src/scene/` – Three.js-Objekte (Körper, Ringe, Labels, Bahnlinien), Texturen, Bloom, Kamera-Steuerung (Fly-to/Follow), Picking, Label-Verdeckung
 - `public/textures/` – 2k-Texturen (siehe Lizenz unten), geladen mit `scripts/fetch-textures.mjs`
-- `src/ui/` – HTML-Overlays (Zeitsteuerung, Körperliste)
+- `src/ui/` – HTML-Overlays (Zeitsteuerung, Maßstab, Körperliste)
 
 ## Modell & Annahmen
 
@@ -30,6 +30,8 @@ npm run build    # Typecheck + Produktions-Build nach dist/
   gültig 1800–2050, Fehler laut JPL von ~10″ (Erde) bis ~600″ (Saturn). Außerhalb des Zeitraums zeigt die UI einen Hinweis.
   Erde = Erde-Mond-Baryzentrum.
 - **Koordinaten:** heliozentrisch-ekliptikal J2000 in AU (z = Nord) → Three.js `(x, z, −y)`. Komprimiert wird nur der Sonnenabstand, die Richtung bleibt exakt.
+- **Maßstab:** komprimiert = Potenzgesetz (Radien r^0,4, Abstände r^0,5); real = linear, Radien und Abstände in derselben Einheit.
+  In beiden gilt 1 AU = 8 Szenen-Einheiten. Details und Präzisionsüberlegungen: [`docs/plan-m5.md`](docs/plan-m5.md).
 - **Zeit:** Julianisches Datum; UTC wird als TDB behandelt (ΔT ≈ 69 s, vernachlässigbar).
 - **Orientierung & Eigenrotation:** Pol (α₀, δ₀) und Nullmeridian W = W₀ + Ẇ·d nach IAU WGCCRE – Achsneigung, Jahreszeiten
   und Tageszeit stimmen (Erde: Sonnenhöchststand-Länge getestet). Vereinfachung: Pole ohne Präzession/Nutation.
@@ -47,6 +49,7 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 | Zurück zur Übersicht | `Esc` oder `0` |
 | Drehen / Zoomen / Verschieben | Ziehen · Rad/Pinch · Rechtsklick |
 | Zeit Start/Pause | Leertaste |
+| Maßstab komprimiert ↔ real | `M` · Button im Panel |
 
 Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumssprung, „Heute“.
 
@@ -57,9 +60,9 @@ Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumsspr
 - [x] M2 Bahnmechanik: Kepler-Elemente (JPL), Zeit-Engine, Bahnellipsen, Tests gegen Horizons
 - [x] M3 Navigation: Klick-Fokus, Fly-to, Follow (Floating Origin → M5, erst im realen Maßstab nötig)
 - [x] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
-- [ ] M5 Maßstab real ↔ komprimiert, Floating Origin
+- [ ] M5 Maßstab real ↔ komprimiert, Floating Origin — M5.1 Umschalter ✓, M5.2 animierter Übergang, M5.3 Präzision (Bahnlinien, kamerarelatives Rendern)
 - [ ] M6 Monde, Zwergplaneten, Asteroidengürtel
-- [ ] M7 Info-Panel, Touch, Performance
+- [ ] M7 Info-Panel, Touch, Performance; Label-Verdeckung durch Ringe, Ring-Picking nur bei geladener Textur
 - [ ] M8 Stretch: VSOP87, Raumsonden, WebXR, N-Body-Sandbox
 
 ## Lizenz der Texturen

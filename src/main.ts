@@ -3,9 +3,18 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bodies, type BodyData, type OrbitalElements } from './data/bodies';
-import { sceneDistance, sceneRadius, toScene, toSceneDirection } from './scale';
+import {
+  COMPRESSED,
+  REAL,
+  sceneDistance,
+  sceneRadius,
+  sceneExtent,
+  toScene,
+  toSceneDirection,
+  type ScaleConfig,
+} from './scale';
 import { CameraController, type FocusTarget } from './scene/cameraController';
-import { minZoomDistance } from './scene/cameraMath';
+import { fitDistance, minZoomDistance } from './scene/cameraMath';
 import { createBody, createOrbitLine, updateOrbitLine } from './scene/createBody';
 import { isOccluded, type Sphere } from './scene/occlusion';
 import { attachPicking, onPointerClick } from './scene/picking';
@@ -16,12 +25,19 @@ import { heliocentricPosition, orbitPoints } from './sim/kepler';
 import { displayedMeridianDeg, orientationAtMeridian } from './sim/rotation';
 import { dateToJd } from './sim/time';
 import { createBodyList } from './ui/bodyList';
+import { createScaleToggle } from './ui/scaleToggle';
 import { createTimeControls } from './ui/timeControls';
 
 /** Bahnelemente driften langsam; Bahnlinien werden nach so vielen Tagen Abweichung neu berechnet */
 const ORBIT_REBUILD_DAYS = 50 * 365.25;
-/** Zoom-Grenze in der Übersicht (knapp außerhalb der Sonne) */
-const OVERVIEW_MIN_DISTANCE = 3;
+/** Größter Zoom-Abstand als Vielfaches des Übersichtsabstands */
+const MAX_ZOOM_FACTOR = 4;
+/**
+ * Fest für beide Maßstäbe: Merkur hat real ≈ 1,3e-4 Einheiten Radius, die Kamera darf bis 0,5 R an die Oberfläche.
+ * Der logarithmische Tiefenpuffer verkraftet far/near = 1e11.
+ */
+const CAMERA_NEAR = 1e-7;
+const CAMERA_FAR = 1e4;
 
 const container = document.getElementById('app')!;
 
@@ -36,7 +52,7 @@ labelRenderer.domElement.style.pointerEvents = 'none'; // Labels selbst sind kli
 container.appendChild(labelRenderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.01, 10_000);
+const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, CAMERA_NEAR, CAMERA_FAR);
 const postProcessing = createPostProcessing(renderer, scene, camera);
 const textures = createTextureSource(renderer);
 
@@ -51,7 +67,6 @@ textures('2k_stars_milky_way.jpg')
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.maxDistance = 400;
 
 // Sonne als einzige Lichtquelle; decay 0, damit äußere Planeten im komprimierten Maßstab sichtbar bleiben
 scene.add(new THREE.PointLight(0xffffff, 3, 0, 0));
@@ -59,6 +74,12 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.06));
 
 const clock = createClock(dateToJd(new Date()), 7);
 
+interface SceneBody {
+  data: BodyData;
+  root: THREE.Group;
+  /** radius/extent werden bei jedem Maßstabswechsel aktualisiert */
+  target: FocusTarget;
+}
 interface OrbitingBody {
   orbit: OrbitalElements;
   root: THREE.Group;
@@ -70,6 +91,9 @@ interface SpinningBody {
   /** Zuletzt angezeigter Nullmeridian-Winkel (Grad) */
   meridianDeg: number;
 }
+
+let scaleCfg: ScaleConfig = COMPRESSED;
+const sceneBodies: SceneBody[] = [];
 const orbiting: OrbitingBody[] = [];
 const spinning: SpinningBody[] = [];
 const pickTargets: THREE.Mesh[] = [];
@@ -77,21 +101,34 @@ const focusTargets = new Map<string, FocusTarget>();
 let orbitEpochJd = clock.jd;
 let overviewRadius = 0;
 
-const scenePoints = (orbit: OrbitalElements, jd: number) => orbitPoints(orbit, jd).map((p) => toScene(p));
+const scenePoints = (orbit: OrbitalElements, jd: number) => orbitPoints(orbit, jd).map((p) => toScene(p, scaleCfg));
 
-for (const body of bodies) {
-  const radius = sceneRadius(body.radiusKm);
-  const { root, sphere, pickables, extent } = createBody(body, radius, textures);
+for (const data of bodies) {
+  const { root, sphere, pickables } = createBody(data, textures);
   scene.add(root);
-  focusTargets.set(body.id, { id: body.id, object: root, radius, extent });
-  spinning.push({ body, sphere, meridianDeg: 0 });
+  const target: FocusTarget = { id: data.id, object: root, radius: 0 };
+  focusTargets.set(data.id, target);
+  sceneBodies.push({ data, root, target });
+  spinning.push({ body: data, sphere, meridianDeg: 0 });
   pickTargets.push(...pickables);
-  if (body.orbit) {
-    const line = createOrbitLine(scenePoints(body.orbit, clock.jd));
+  if (data.orbit) {
+    const line = createOrbitLine([]);
     scene.add(line);
-    orbiting.push({ orbit: body.orbit, root, line });
-    const aphelion = body.orbit.a[0] * (1 + body.orbit.e[0]);
-    overviewRadius = Math.max(overviewRadius, sceneDistance(aphelion) + radius);
+    orbiting.push({ orbit: data.orbit, root, line });
+  }
+}
+
+/** Radien, Ausdehnung (Ringe) und Übersichtsradius für den aktuellen Maßstab */
+function applyRadii(): void {
+  overviewRadius = 0;
+  for (const { data, root, target } of sceneBodies) {
+    target.radius = sceneRadius(data.radiusKm, scaleCfg);
+    target.extent = sceneExtent(data, scaleCfg);
+    root.scale.setScalar(target.radius);
+    if (data.orbit) {
+      const aphelion = data.orbit.a[0] * (1 + data.orbit.e[0]);
+      overviewRadius = Math.max(overviewRadius, sceneDistance(aphelion, scaleCfg) + target.radius);
+    }
   }
 }
 
@@ -99,23 +136,29 @@ for (const body of bodies) {
 const labelEntries = [...focusTargets.values()].flatMap((t) => {
   const label = t.object.children.find((c): c is CSS2DObject => c instanceof CSS2DObject);
   // center ist eine Referenz auf root.position → bleibt ohne Kopie aktuell
+  // radius als Getter: ändert sich mit dem Maßstab
   const others: Sphere[] = [...focusTargets.values()]
     .filter((o) => o !== t)
-    .map((o) => ({ center: o.object.position, radius: o.radius }));
+    .map((o) => ({
+      center: o.object.position,
+      get radius() {
+        return o.radius;
+      },
+    }));
   return label ? [{ root: t.object, label, others }] : [];
 });
 const labelAnchor = new THREE.Vector3();
 function updateLabelVisibility(): void {
   for (const { root, label, others } of labelEntries) {
-    // Direkt aus der aktuellen Position (matrixWorld wird erst beim Rendern aktualisiert)
-    labelAnchor.copy(root.position).add(label.position);
+    // Direkt aus Position und Skalierung (matrixWorld wird erst beim Rendern aktualisiert); root rotiert nicht
+    labelAnchor.copy(label.position).multiply(root.scale).add(root.position);
     label.visible = !isOccluded(camera.position, labelAnchor, others);
   }
 }
 
 function updatePositions(): void {
   for (const { orbit, root } of orbiting) {
-    root.position.set(...toScene(heliocentricPosition(orbit, clock.jd)));
+    root.position.set(...toScene(heliocentricPosition(orbit, clock.jd), scaleCfg));
   }
 }
 
@@ -142,11 +185,15 @@ function rebuildOrbits(): void {
   for (const { orbit, line } of orbiting) updateOrbitLine(line, scenePoints(orbit, clock.jd));
 }
 
+applyRadii();
+rebuildOrbits();
+
 // --- Kamera & Auswahl -------------------------------------------------------------------------
 
 const cameraController = new CameraController(camera, controls.target, overviewRadius);
 
 const sun = bodies.find((b) => b.type === 'star')!;
+const sunTarget = focusTargets.get(sun.id)!;
 const bodyList = createBodyList(
   document.getElementById('body-list')!,
   sun,
@@ -168,10 +215,25 @@ onPointerClick(labelRenderer.domElement, (e) => {
   if (id) select(id);
 });
 
-const timeControls = createTimeControls(document.getElementById('time-controls')!, clock, () => {
+const timeControlsRoot = document.getElementById('time-controls')!;
+const timeControls = createTimeControls(timeControlsRoot, clock, () => {
   rebuildOrbits();
   updatePositions();
 });
+const scaleToggle = createScaleToggle(timeControlsRoot, () => setScale(scaleCfg === REAL ? COMPRESSED : REAL));
+scaleToggle.setReal(false);
+
+/** Maßstab sofort wechseln; der Bildausschnitt relativ zum Fokus bleibt erhalten */
+function setScale(cfg: ScaleConfig): void {
+  const focused = cameraController.focused;
+  const oldRadius = focused?.radius ?? 1;
+  scaleCfg = cfg;
+  applyRadii();
+  rebuildOrbits();
+  cameraController.rescale(overviewRadius, focused ? focused.radius / oldRadius : 1);
+  updatePositions();
+  scaleToggle.setReal(cfg === REAL);
+}
 
 function resize(): void {
   const { clientWidth: w, clientHeight: h } = container;
@@ -206,7 +268,9 @@ renderer.setAnimationLoop((timeMs: number) => {
   cameraController.update(dt);
   controls.enabled = !cameraController.isFlying;
   const focused = cameraController.focused;
-  controls.minDistance = focused ? minZoomDistance(focused.extent ?? focused.radius) : OVERVIEW_MIN_DISTANCE;
+  // Fokus: Ringe einbeziehen; Übersicht: knapp außerhalb der Sonne
+  controls.minDistance = minZoomDistance(focused ? (focused.extent ?? focused.radius) : sunTarget.radius);
+  controls.maxDistance = MAX_ZOOM_FACTOR * fitDistance(overviewRadius, camera.fov, camera.aspect);
   // Während des Flugs nicht: update() würde auf minDistance klemmen und Rest-Damping anwenden
   if (!cameraController.isFlying) controls.update();
   else camera.lookAt(controls.target);
