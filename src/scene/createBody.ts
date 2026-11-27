@@ -106,7 +106,15 @@ export function createOrbitLine(points: Vec3[]): THREE.LineLoop {
   return new THREE.LineLoop(orbitGeometry(points), material);
 }
 
+/** Gleiche Punktzahl: Puffer in-place aktualisieren (läuft während des Maßstabswechsels jedes Frame) */
 export function updateOrbitLine(line: THREE.LineLoop, points: Vec3[]): void {
+  const position = line.geometry.getAttribute('position');
+  if (position?.count === points.length) {
+    points.forEach(([x, y, z], i) => position.setXYZ(i, x, y, z));
+    position.needsUpdate = true;
+    line.geometry.computeBoundingSphere(); // für Frustum-Culling
+    return;
+  }
   line.geometry.dispose();
   line.geometry = orbitGeometry(points);
 }

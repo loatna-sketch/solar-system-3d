@@ -49,7 +49,7 @@ npm run build    # Typecheck + Produktions-Build nach dist/
 | Zurück zur Übersicht | `Esc` oder `0` |
 | Drehen / Zoomen / Verschieben | Ziehen · Rad/Pinch · Rechtsklick |
 | Zeit Start/Pause | Leertaste |
-| Maßstab komprimiert ↔ real | `M` · Button im Panel |
+| Maßstab komprimiert ↔ real (animiert, ~2 s) | `M` · Button im Panel |
 
 Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumssprung, „Heute“.
 
@@ -60,7 +60,7 @@ Panel unten rechts: Richtung, Geschwindigkeit (Echtzeit … 1 Jahr/s), Datumsspr
 - [x] M2 Bahnmechanik: Kepler-Elemente (JPL), Zeit-Engine, Bahnellipsen, Tests gegen Horizons
 - [x] M3 Navigation: Klick-Fokus, Fly-to, Follow (Floating Origin → M5, erst im realen Maßstab nötig)
 - [x] M4 Visuals: Texturen, Rotation/Achsneigung, Saturnringe, Bloom, Skybox
-- [ ] M5 Maßstab real ↔ komprimiert, Floating Origin — M5.1 Umschalter ✓, M5.2 animierter Übergang, M5.3 Präzision (Bahnlinien, kamerarelatives Rendern)
+- [ ] M5 Maßstab real ↔ komprimiert, Floating Origin — M5.1 Umschalter ✓, M5.2 animierter Übergang ✓, M5.3 Präzision (Bahnlinien, kamerarelatives Rendern)
 - [ ] M6 Monde, Zwergplaneten, Asteroidengürtel
 - [ ] M7 Info-Panel, Touch, Performance; Label-Verdeckung durch Ringe, Ring-Picking nur bei geladener Textur
 - [ ] M8 Stretch: VSOP87, Raumsonden, WebXR, N-Body-Sandbox

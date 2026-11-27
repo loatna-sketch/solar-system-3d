@@ -161,6 +161,54 @@ describe('CameraController', () => {
     expect(camera.position.distanceTo(cameraBefore.multiplyScalar(4))).toBeCloseTo(0);
   });
 
+  it('hält Abstand/Radius über einen schrittweisen Maßstabswechsel konstant (Follow, bewegter Körper)', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const direction = camera.position.clone().sub(target).normalize();
+    const relative = camera.position.distanceTo(target) / focus.radius;
+    // 60 Frames: Radius schrumpft log-linear um Faktor 1e-3, Position wandert mit
+    for (let i = 1; i <= 60; i++) {
+      const old = focus.radius;
+      focus.radius = 0.5 * 10 ** (-3 * (i / 60));
+      controller.rescale(OVERVIEW_RADIUS * (1 + i / 60), focus.radius / old);
+      planet.position.multiplyScalar(1.01).add(new THREE.Vector3(0.05, 0, 0.02));
+      controller.update(0.016);
+      expect(target.distanceTo(planet.position)).toBeCloseTo(0, 10);
+    }
+    expect(camera.position.distanceTo(target) / focus.radius).toBeCloseTo(relative, 8);
+    expect(camera.position.clone().sub(target).normalize().dot(direction)).toBeCloseTo(1, 10);
+  });
+
+  it('hält den Zoom in der Übersicht über einen schrittweisen Maßstabswechsel relativ zum Übersichtsradius', () => {
+    const { camera, controller } = setup();
+    camera.position.multiplyScalar(0.7); // Nutzer-Zoom
+    let radius = OVERVIEW_RADIUS;
+    const relative = camera.position.length() / radius;
+    for (let i = 1; i <= 60; i++) {
+      const next = OVERVIEW_RADIUS * 5.5 ** (i / 60);
+      controller.rescale(next, 1);
+      radius = next;
+      controller.update(0.016);
+    }
+    expect(camera.position.length() / radius).toBeCloseTo(relative, 10);
+  });
+
+  it('rescale im Follow bleibt korrekt, wenn der Körper vorher außerhalb von update() gesprungen ist (Datumssprung)', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const offsetBefore = camera.position.clone().sub(target);
+    planet.position.add(new THREE.Vector3(16, 0, -9)); // Datumssprung: Position neu gesetzt, noch ohne update()
+    const ratio = 0.92;
+    focus.radius *= ratio;
+    controller.rescale(OVERVIEW_RADIUS, ratio);
+    planet.position.multiplyScalar(1.01); // Maßstab verschiebt die Position zusätzlich
+    controller.update(0.016);
+    expect(target.distanceTo(planet.position)).toBeCloseTo(0, 10);
+    expect(camera.position.clone().sub(target).distanceTo(offsetBefore.multiplyScalar(ratio))).toBeCloseTo(0, 10);
+  });
+
   it('rescale ändert während eines Flugs nichts an Kamera und Target', () => {
     const { camera, target, controller, focus } = setup();
     controller.focus(focus);
