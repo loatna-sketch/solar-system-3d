@@ -194,6 +194,21 @@ describe('CameraController', () => {
     expect(camera.position.length() / radius).toBeCloseTo(relative, 10);
   });
 
+  it('rescale im Follow bleibt korrekt, wenn der Körper vorher außerhalb von update() gesprungen ist (Datumssprung)', () => {
+    const { camera, target, controller, planet, focus } = setup();
+    controller.focus(focus);
+    run(controller, 30, 0.05);
+    const offsetBefore = camera.position.clone().sub(target);
+    planet.position.add(new THREE.Vector3(16, 0, -9)); // Datumssprung: Position neu gesetzt, noch ohne update()
+    const ratio = 0.92;
+    focus.radius *= ratio;
+    controller.rescale(OVERVIEW_RADIUS, ratio);
+    planet.position.multiplyScalar(1.01); // Maßstab verschiebt die Position zusätzlich
+    controller.update(0.016);
+    expect(target.distanceTo(planet.position)).toBeCloseTo(0, 10);
+    expect(camera.position.clone().sub(target).distanceTo(offsetBefore.multiplyScalar(ratio))).toBeCloseTo(0, 10);
+  });
+
   it('rescale ändert während eines Flugs nichts an Kamera und Target', () => {
     const { camera, target, controller, focus } = setup();
     controller.focus(focus);

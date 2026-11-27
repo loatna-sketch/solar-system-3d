@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { bodies } from '../data/bodies';
 import { COMPRESSED, REAL, sceneExtent, sceneRadius, sceneRingRadius } from '../scale';
 import { focusDistance, minZoomDistance } from './cameraMath';
-import { createRings } from './createBody';
+import { createOrbitLine, createRings, updateOrbitLine } from './createBody';
 import type { TextureSource } from './textures';
 
 /** Textur lädt nie – Geometrie ist unabhängig davon */
@@ -49,5 +49,42 @@ describe('Fokus vs. Zoomgrenze', () => {
     for (const body of bodies) {
       expect(focusDistance(sceneRadius(body.radiusKm, cfg)), body.id).toBeGreaterThan(minZoomDistance(sceneExtent(body, cfg)));
     }
+  });
+});
+
+describe('updateOrbitLine', () => {
+  const square = (r: number): [number, number, number][] => [
+    [r, 0, 0],
+    [0, 0, r],
+    [-r, 0, 0],
+    [0, 0, -r],
+  ];
+
+  it('legt beim ersten Aufbau (0 → N Punkte) eine neue Geometrie an', () => {
+    const line = createOrbitLine([]);
+    const empty = line.geometry;
+    updateOrbitLine(line, square(1));
+    expect(line.geometry).not.toBe(empty);
+    expect(line.geometry.getAttribute('position').count).toBe(4);
+  });
+
+  it('aktualisiert bei gleicher Punktzahl den Puffer in-place inkl. Bounding Sphere', () => {
+    const line = createOrbitLine(square(1));
+    const geometry = line.geometry;
+    const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const version = position.version;
+    updateOrbitLine(line, square(5));
+    expect(line.geometry).toBe(geometry);
+    expect(position.getX(0)).toBe(5);
+    expect(position.version).toBeGreaterThan(version);
+    expect(geometry.boundingSphere!.radius).toBeCloseTo(5);
+  });
+
+  it('legt bei anderer Punktzahl eine neue Geometrie an', () => {
+    const line = createOrbitLine(square(1));
+    const geometry = line.geometry;
+    updateOrbitLine(line, [...square(1), [1, 1, 1]]);
+    expect(line.geometry).not.toBe(geometry);
+    expect(line.geometry.getAttribute('position').count).toBe(5);
   });
 });

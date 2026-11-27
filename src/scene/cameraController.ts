@@ -86,8 +86,9 @@ export class CameraController {
   /**
    * Nach einem Maßstabswechsel: Bildausschnitt erhalten. Kamera und Target werden gemeinsam um einen Bezugspunkt
    * skaliert (Follow: Körper, Übersicht: Ursprung), damit auch ein gepanntes Target relativ an seinem Platz bleibt.
-   * Vor dem Setzen der neuen Positionen aufrufen: Im Follow ist der Bezugspunkt die alte Körperposition,
-   * den Sprung zur neuen gleicht update() aus. focusRadiusRatio = neuer / alter Radius des fokussierten Körpers.
+   * Im Follow ist der Bezugspunkt die Position, an der die Kamera gerade hängt (lastTargetPosition) – nicht die
+   * aktuelle Körperposition, die sich z. B. durch einen Datumssprung schon geändert haben kann. Den Sprung zur neuen
+   * Position gleicht update() aus. focusRadiusRatio = neuer / alter Radius des fokussierten Körpers.
    * Ein laufender Flug passt sein Ziel selbst an.
    */
   rescale(overviewRadius: number, focusRadiusRatio: number): void {
@@ -95,7 +96,7 @@ export class CameraController {
     this.overviewRadius = overviewRadius;
     if (this.mode === 'flying') return;
     const followed = this.mode === 'following' ? this.focused : null;
-    const anchor = followed ? followed.object.position : CameraController.ORIGIN;
+    const anchor = followed ? this.lastTargetPosition : CameraController.ORIGIN;
     const ratio = followed ? focusRadiusRatio : overviewRatio;
     for (const v of [this.camera.position, this.target]) v.sub(anchor).multiplyScalar(ratio).add(anchor);
   }

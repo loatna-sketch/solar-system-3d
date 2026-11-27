@@ -233,8 +233,7 @@ scaleToggle.setReal(false);
 
 /**
  * Maßstab auf den aktuellen Überblendwert setzen (pro Frame während des Übergangs).
- * Vor updatePositions aufrufen: rescale skaliert um die alte Körperposition, den Sprung gleicht der Follow aus.
- * Der Bildausschnitt relativ zum Fokus bleibt so über alle Frames erhalten.
+ * rescale erhält den Bildausschnitt relativ zum Fokus über alle Frames; den Positionssprung gleicht der Follow aus.
  */
 function applyScale(): void {
   const focused = cameraController.focused;
